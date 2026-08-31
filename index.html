@@ -3,40 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Gadgets</title>
+  <title>Asier AI - Gadgets</title>
   <style>
-    body { font-family: system-ui, sans-serif; background: #1a1a1a; color: white; padding: 2rem; }
+    body { font-family: system-ui, sans-serif; background: #121212; color: white; padding: 2rem; }
     h1 { text-align: center; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; max-width: 900px; margin: 2rem auto; }
-    .card { background: #2a2a2a; border-radius: 10px; overflow: hidden; text-decoration: none; color: white; transition: transform 0.2s; border: 1px solid #333; }
-    .card:hover { transform: translateY(-5px); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; max-width: 1000px; margin: 2rem auto; }
+    .card { background: #1e1e1e; border-radius: 12px; overflow: hidden; text-decoration: none; color: inherit; border: 1px solid #333; transition: transform 0.2s; }
+    .card:hover { transform: translateY(-4px); }
     .card img { width: 100%; height: 160px; object-fit: cover; }
     .card-body { padding: 1rem; }
-    .card-body h3 { margin: 0 0 0.5rem 0; }
-    .card-body p { margin: 0; color: #aaa; font-size: 0.9rem; }
+    .card-body h3 { margin: 0 0 0.5rem 0; text-transform: capitalize; }
   </style>
 </head>
 <body>
-  <h1>Mis Gadgets y Aplicaciones</h1>
+  <h1>Mis Aplicaciones</h1>
 
-  <div class="grid">
-    <!-- Gadget 1 -->
-    <a href="./gadget-1/" class="card">
-      <img src="https://via.placeholder.com/300x160" alt="Gadget 1">
-      <div class="card-body">
-        <h3>Gadget 1</h3>
-        <p>Descripción corta de la app 1.</p>
-      </div>
-    </a>
+  <div class="grid" id="apps-container"></div>
 
-    <!-- Gadget 2 -->
-    <a href="./gadget-2/" class="card">
-      <img src="https://via.placeholder.com/300x160" alt="Gadget 2">
-      <div class="card-body">
-        <h3>Gadget 2</h3>
-        <p>Descripción corta de la app 2.</p>
-      </div>
-    </a>
-  </div>
+  <script>
+    const USERNAME = 'asierai';
+    const REPO = 'asierai.github.io';
+
+    async function obtenerCarpetas() {
+      const respuesta = await fetch(`https://api.github.com/repos/${USERNAME}/${REPO}/contents`);
+      const elementos = await respuesta.json();
+
+      // Filtra para quedarse solo con carpetas (excluyendo ocultas o especiales)
+      const carpetas = elementos.filter(el => el.type === 'dir' && !el.name.startsWith('.'));
+      const contenedor = document.getElementById('apps-container');
+
+      contenedor.innerHTML = carpetas.map(carpeta => `
+        <a href="./${carpeta.name}/" class="card">
+          <img src="https://via.placeholder.com/300x160?text=${carpeta.name}" alt="${carpeta.name}">
+          <div class="card-body">
+            <h3>${carpeta.name.replace(/-/g, ' ')}</h3>
+            <p>Acceder a la aplicación ${carpeta.name}</p>
+          </div>
+        </a>
+      `).join('');
+    }
+
+    obtenerCarpetas();
+  </script>
 </body>
 </html>
