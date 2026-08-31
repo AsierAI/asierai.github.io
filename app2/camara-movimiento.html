@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Detección de Movimiento RGB</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+    }
+
+    .canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    video { display: none; }
+
+    /* Panel flotante por encima del lienzo */
+    .controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 400px;
+      padding: 15px 20px;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      z-index: 100; /* Asegura que se vea por encima de la cámara */
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #007aff;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="canvas-container">
+    <canvas id="outputCanvas"></canvas>
+  </div>
+  <video id="webcam" autoplay playsinline></video>
+
+  <!-- Panel de control flotante -->
+  <div class="controls">
+    <div class="slider-header">
+      <label for="delaySlider">Desfase temporal ($T$):</label>
+      <span id="delayVal">0.20s</span>
+    </div>
+    <input type="range" id="delaySlider" min="0.05" max="1.5" step="0.05" value="0.2">
+  </div>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('outputCanvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const delaySlider = document.getElementById('delaySlider');
+    const delayVal = document.getElementById('delayVal');
+
+    let frameBuffer = [];
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+
+    delaySlider.addEventListener('input', (e) => {
+      delayVal.textContent = parseFloat(e.target.value).toFixed(2) + 's';
+    });
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play();
+          canvas.width = tempCanvas.width = video.videoWidth;
+          canvas.height = tempCanvas.height = video.videoHeight;
+          requestAnimationFrame(processFrame);
+        };
+      } catch (err) {
+        alert("Error al abrir cámara: " + err.message);
+      }
+    }
+
+    function processFrame() {
+      if (video.paused || video.ended) return;
+
+      const w = canvas.width;
+      const h = canvas.height;
+
+      tempCtx.drawImage(video, 0, 0, w, h);
+      const currentFrame = tempCtx.getImageData(0, 0, w, h);
+      const currentData = currentFrame.data;
+
+      // Escala de grises
+      const grayData = new Uint8ClampedArray(w * h);
+      for (let i = 0; i < currentData.length; i += 4) {
+        grayData[i / 4] = 0.299 * currentData[i] + 0.587 * currentData[i + 1] + 0.114 * currentData[i + 2];
+      }
+
+      const now = performance.now();
+      frameBuffer.push({ timestamp: now, data: grayData });
+
+      const delayMs = parseFloat(delaySlider.value) * 1000;
+      const targetT1 = now - delayMs;
+      const targetT2 = now - (delayMs * 2);
+      const targetT3 = now - (delayMs * 3);
+
+      while (frameBuffer.length > 0 && frameBuffer[0].timestamp < targetT3 - 500) {
+        frameBuffer.shift();
+      }
+
+      const fNow = grayData;
+      const fT1 = getClosestFrame(targetT1) || grayData;
+      const fT2 = getClosestFrame(targetT2) || grayData;
+      const fT3 = getClosestFrame(targetT3) || grayData;
+
+      const outputImageData = ctx.createImageData(w, h);
+      const outputData = outputImageData.data;
+
+      for (let i = 0; i < grayData.length; i++) {
+        const pixelIdx = i * 4;
+
+        // Negativos / Diferencia de fotogramas desfasados
+        const diffRed   = Math.abs(fNow[i] - fT1[i]);
+        const diffGreen = Math.abs(fT1[i]  - fT2[i]);
+        const diffBlue  = Math.abs(fT2[i]  - fT3[i]);
+
+        outputData[pixelIdx]     = diffRed   * 2;
+        outputData[pixelIdx + 1] = diffGreen * 2;
+        outputData[pixelIdx + 2] = diffBlue  * 2;
+        outputData[pixelIdx + 3] = 255;
+      }
+
+      ctx.putImageData(outputImageData, 0, 0);
+      requestAnimationFrame(processFrame);
+    }
+
+    function getClosestFrame(targetTime) {
+      if (frameBuffer.length === 0) return null;
+      let closest = frameBuffer[0];
+      let minDiff = Math.abs(targetTime - closest.timestamp);
+
+      for (let i = 1; i < frameBuffer.length; i++) {
+        const diff = Math.abs(targetTime - frameBuffer[i].timestamp);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = frameBuffer[i];
+        }
+      }
+      return closest.data;
+    }
+
+    startCamera();
+  </script>
+</body>
+</html>
