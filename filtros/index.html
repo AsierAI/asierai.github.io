@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Scanner Cam Pro</title>
+  <style>
+    :root {
+      --bg: #090a0f;
+      --card-bg: rgba(18, 20, 29, 0.85);
+      --accent: #00f3ff;
+      --accent-pink: #ff0055;
+      --text: #ffffff;
+      --text-dim: #8e99a8;
+      --border: rgba(255, 255, 255, 0.12);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Top Bar */
+    header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      padding: 18px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(to bottom, rgba(9,10,15,0.9), rgba(9,10,15,0));
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-icon {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    .brand-title {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: linear-gradient(45deg, #fff, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      font-size: 0.7rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Viewport Area */
+    .viewport {
+      flex: 1;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+
+    video { display: none; }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Controls Panel */
+    .controls-panel {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      padding: 20px 20px calc(24px + env(safe-area-inset-bottom));
+      background: linear-gradient(to top, rgba(9,10,15,0.95) 40%, rgba(9,10,15,0));
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    /* Selector Tabs */
+    .mode-selector {
+      display: flex;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 4px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      gap: 4px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px 0;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 10px;
+      transition: all 0.25s ease;
+      cursor: pointer;
+    }
+
+    .mode-btn.active {
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--accent);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      border: 1px solid rgba(0, 243, 255, 0.3);
+    }
+
+    /* Action Grid */
+    .actions-grid {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding-top: 4px;
+    }
+
+    .icon-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .icon-btn:active {
+      transform: scale(0.92);
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .icon-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    /* Main Trigger Button */
+    .trigger-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 3px solid var(--accent);
+      background: radial-gradient(circle, var(--accent) 0%, rgba(0,243,255,0.4) 100%);
+      box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .trigger-btn::after {
+      content: '';
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+    }
+
+    .trigger-btn:active {
+      transform: scale(0.92);
+      box-shadow: 0 0 30px rgba(0, 243, 255, 0.8);
+    }
+
+    /* Modal Download Preview */
+    .preview-modal {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      background: rgba(9, 10, 15, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .preview-modal.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .preview-card {
+      width: 100%;
+      max-width: 380px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+
+    .preview-img-container {
+      width: 100%;
+      height: 380px;
+      background: #000;
+    }
+
+    .preview-img-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .preview-actions {
+      padding: 16px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-secondary, .btn-primary {
+      flex: 1;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #0077ff);
+      color: #000;
+      font-weight: 700;
+      box-shadow: 0 4px 15px rgba(0, 243, 255, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon"></div>
+      <div class="brand-title">SCANNER LAB</div>
+    </div>
+    <div class="status-badge" id="statusBadge">Listo</div>
+  </header>
+
+  <!-- Viewport -->
+  <div class="viewport">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <!-- Bottom Controls -->
+  <div class="controls-panel">
+    <div class="mode-selector">
+      <button class="mode-btn active" id="btnMode1" onclick="setMode(1)">Time Warp</button>
+      <button class="mode-btn" id="btnMode3" onclick="setMode(3)">Slit-Scan</button>
+    </div>
+
+    <div class="actions-grid">
+      <button class="icon-btn" onclick="toggleCamera()" title="Cambiar Cámara">
+        <svg viewBox="0 0 24 24"><path d="M7 7h10v2l3-3-3-3v2H5v6h2V7zm10 10H7v-2l-3 3 3 3v-2h12v-6h-2v4z"/></svg>
+      </button>
+
+      <button class="trigger-btn" onclick="startCapture()" title="Capturar"></button>
+
+      <button class="icon-btn" onclick="resetCanvas()" title="Reiniciar">
+        <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Download Modal -->
+  <div class="preview-modal" id="previewModal">
+    <div class="preview-card">
+      <div class="preview-img-container">
+        <img id="previewImage" src="" alt="Scan Result">
+      </div>
+      <div class="preview-actions">
+        <button class="btn-secondary" onclick="closeModal()">Descartar</button>
+        <button class="btn-primary" onclick="downloadImage()">Descargar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const statusBadge = document.getElementById('statusBadge');
+    
+    let activeMode = 1; 
+    let isScanning = false;
+    let facingMode = 'user';
+    let currentStream = null;
+
+    let scanY = 0;
+    const scanSpeed = 3;
+    let slitX = 0;
+
+    async function initCamera() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        });
+        video.srcObject = currentStream;
+        video.onloadedmetadata = () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          resetCanvas();
+          requestAnimationFrame(renderLoop);
+        };
+      } catch (err) {
+        alert("Error al acceder a la cámara: " + err.message);
+      }
+    }
+
+    function toggleCamera() {
+      facingMode = facingMode === 'user' ? 'environment' : 'user';
+      initCamera();
+    }
+
+    function setMode(mode) {
+      activeMode = mode;
+      document.getElementById('btnMode1').classList.toggle('active', mode === 1);
+      document.getElementById('btnMode3').classList.toggle('active', mode === 3);
+      resetCanvas();
+    }
+
+    function resetCanvas() {
+      isScanning = false;
+      scanY = 0;
+      slitX = 0;
+      statusBadge.textContent = "Listo";
+      statusBadge.style.color = "var(--text-dim)";
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function startCapture() {
+      resetCanvas();
+      isScanning = true;
+      statusBadge.textContent = "Escaneando";
+      statusBadge.style.color = "var(--accent)";
+    }
+
+    function renderLoop() {
+      if (!isScanning) {
+        ctx.save();
+        if (facingMode === 'user') {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      } else {
+        if (activeMode === 1) {
+          if (scanY < canvas.height) {
+            ctx.save();
+            if (facingMode === 'user') {
+              ctx.translate(canvas.width, 0);
+              ctx.scale(-1, 1);
+            }
+            ctx.drawImage(
+              video,
+              0, scanY, canvas.width, canvas.height - scanY,
+              0, scanY, canvas.width, canvas.height - scanY
+            );
+            ctx.restore();
+
+            ctx.fillStyle = '#00f3ff';
+            ctx.shadowColor = '#00f3ff';
+            ctx.shadowBlur = 12;
+            ctx.fillRect(0, scanY, canvas.width, 4);
+            ctx.shadowBlur = 0;
+
+            scanY += scanSpeed;
+          } else {
+            finishScan();
+          }
+        } else if (activeMode === 3) {
+          if (slitX < canvas.width) {
+            const centerSourceX = video.videoWidth / 2;
+            ctx.save();
+            if (facingMode === 'user') {
+              ctx.translate(canvas.width, 0);
+              ctx.scale(-1, 1);
+            }
+            ctx.drawImage(
+              video,
+              centerSourceX, 0, 2, video.videoHeight,
+              slitX, 0, 2, canvas.height
+            );
+            ctx.restore();
+
+            ctx.fillStyle = '#ff0055';
+            ctx.fillRect(slitX + 2, 0, 2, canvas.height);
+
+            slitX += 2;
+          } else {
+            finishScan();
+          }
+        }
+      }
+      requestAnimationFrame(renderLoop);
+    }
+
+    function finishScan() {
+      isScanning = false;
+      statusBadge.textContent = "Completado";
+      statusBadge.style.color = "#00ff88";
+
+      const dataURL = canvas.toDataURL('image/png');
+      document.getElementById('previewImage').src = dataURL;
+      document.getElementById('previewModal').classList.add('visible');
+    }
+
+    function closeModal() {
+      document.getElementById('previewModal').classList.remove('visible');
+      resetCanvas();
+    }
+
+    function downloadImage() {
+      const link = document.createElement('a');
+      link.download = `scan-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      closeModal();
+    }
+
+    window.onload = initCamera;
+  </script>
+</body>
+</html>
