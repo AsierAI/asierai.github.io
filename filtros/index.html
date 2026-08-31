@@ -7,7 +7,7 @@
   <style>
     :root {
       --bg: #090a0f;
-      --card-bg: rgba(18, 20, 29, 0.85);
+      --card-bg: rgba(18, 20, 29, 0.9);
       --accent: #00f3ff;
       --accent-pink: #ff0055;
       --text: #ffffff;
@@ -294,7 +294,7 @@
 </head>
 <body>
 
-  <!-- Top Header -->
+  <!-- Header -->
   <header>
     <div class="brand">
       <div class="brand-icon"></div>
@@ -348,14 +348,19 @@
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const statusBadge = document.getElementById('statusBadge');
     
+    // Canvas Oculto (Buffer en memoria para congelar imágenes limpias sin líneas)
+    const offCanvas = document.createElement('canvas');
+    const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+
     let activeMode = 1; 
     let isScanning = false;
     let facingMode = 'user';
     let currentStream = null;
 
     let scanY = 0;
-    const scanSpeed = 3;
+    const scanSpeed = 5; // Aumentada para fluidez
     let slitX = 0;
+    const slitWidth = 3;
 
     async function initCamera() {
       if (currentStream) {
@@ -370,11 +375,13 @@
         video.onloadedmetadata = () => {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
+          offCanvas.width = video.videoWidth;
+          offCanvas.height = video.videoHeight;
           resetCanvas();
           requestAnimationFrame(renderLoop);
         };
       } catch (err) {
-        alert("Error al acceder a la cámara: " + err.message);
+        alert("Error de cámara: " + err.message);
       }
     }
 
@@ -397,6 +404,7 @@
       statusBadge.textContent = "Listo";
       statusBadge.style.color = "var(--text-dim)";
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      offCtx.clearRect(0, 0, offCanvas.width, offCanvas.height);
     }
 
     function startCapture() {
@@ -408,6 +416,7 @@
 
     function renderLoop() {
       if (!isScanning) {
+        // Vista previa normal
         ctx.save();
         if (facingMode === 'user') {
           ctx.translate(canvas.width, 0);
@@ -417,7 +426,28 @@
         ctx.restore();
       } else {
         if (activeMode === 1) {
+          // --- MODE 1: TIME WARP SCAN ---
           if (scanY < canvas.height) {
+            // 1. Guardar la franja actual congelada en el canvas oculto
+            offCtx.save();
+            if (facingMode === 'user') {
+              offCtx.translate(offCanvas.width, 0);
+              offCtx.scale(-1, 1);
+            }
+            offCtx.drawImage(
+              video,
+              0, scanY, video.videoWidth, scanSpeed,
+              0, scanY, offCanvas.width, scanSpeed
+            );
+            offCtx.restore();
+
+            // 2. Renderizar combinación en el canvas visible
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Dibuja la parte congelada previa
+            ctx.drawImage(offCanvas, 0, 0);
+
+            // Dibuja la parte en vivo que falta por escanear
             ctx.save();
             if (facingMode === 'user') {
               ctx.translate(canvas.width, 0);
@@ -425,14 +455,15 @@
             }
             ctx.drawImage(
               video,
-              0, scanY, canvas.width, canvas.height - scanY,
+              0, scanY, video.videoWidth, video.videoHeight - scanY,
               0, scanY, canvas.width, canvas.height - scanY
             );
             ctx.restore();
 
+            // 3. Dibujar la línea neón azul (Solo en la pantalla visible)
             ctx.fillStyle = '#00f3ff';
             ctx.shadowColor = '#00f3ff';
-            ctx.shadowBlur = 12;
+            ctx.shadowBlur = 15;
             ctx.fillRect(0, scanY, canvas.width, 4);
             ctx.shadowBlur = 0;
 
@@ -441,24 +472,35 @@
             finishScan();
           }
         } else if (activeMode === 3) {
+          // --- MODE 3: SLIT-SCAN ---
           if (slitX < canvas.width) {
             const centerSourceX = video.videoWidth / 2;
-            ctx.save();
+
+            // 1. Guardar tira vertical en el canvas oculto
+            offCtx.save();
             if (facingMode === 'user') {
-              ctx.translate(canvas.width, 0);
-              ctx.scale(-1, 1);
+              offCtx.translate(offCanvas.width, 0);
+              offCtx.scale(-1, 1);
             }
-            ctx.drawImage(
+            offCtx.drawImage(
               video,
-              centerSourceX, 0, 2, video.videoHeight,
-              slitX, 0, 2, canvas.height
+              centerSourceX, 0, slitWidth, video.videoHeight,
+              slitX, 0, slitWidth, offCanvas.height
             );
-            ctx.restore();
+            offCtx.restore();
 
+            // 2. Dibujar imagen acumulada en el canvas visible
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(offCanvas, 0, 0);
+
+            // 3. Dibujar la línea rosa guía (Solo en la pantalla visible)
             ctx.fillStyle = '#ff0055';
-            ctx.fillRect(slitX + 2, 0, 2, canvas.height);
+            ctx.shadowColor = '#ff0055';
+            ctx.shadowBlur = 12;
+            ctx.fillRect(slitX + slitWidth, 0, 3, canvas.height);
+            ctx.shadowBlur = 0;
 
-            slitX += 2;
+            slitX += slitWidth;
           } else {
             finishScan();
           }
@@ -472,7 +514,12 @@
       statusBadge.textContent = "Completado";
       statusBadge.style.color = "#00ff88";
 
-      const dataURL = canvas.toDataURL('image/png');
+      // Transferir la imagen limpia final congelada desde el buffer sin líneas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(offCanvas, 0, 0);
+
+      // Mostrar modal de descarga
+      const dataURL = offCanvas.toDataURL('image/png');
       document.getElementById('previewImage').src = dataURL;
       document.getElementById('previewModal').classList.add('visible');
     }
@@ -485,7 +532,7 @@
     function downloadImage() {
       const link = document.createElement('a');
       link.download = `scan-${Date.now()}.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.href = offCanvas.toDataURL('image/png');
       link.click();
       closeModal();
     }
