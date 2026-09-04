@@ -1,0 +1,1959 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  >
+
+  <title>Boca Musical</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: Arial, sans-serif;
+    }
+
+    /* =========================
+       CÁMARA A PANTALLA COMPLETA
+       ========================= */
+
+    #camera {
+      position: fixed;
+      inset: 0;
+
+      width: 100vw;
+      height: 100vh;
+
+      object-fit: cover;
+
+      /* Efecto espejo */
+      transform: scaleX(-1);
+
+      z-index: 0;
+
+      background: #000;
+    }
+
+    /* =========================
+       CANVAS
+       ========================= */
+
+    #game {
+      position: fixed;
+      inset: 0;
+
+      width: 100vw;
+      height: 100vh;
+
+      z-index: 1;
+
+      pointer-events: none;
+    }
+
+    /* =========================
+       INTERFAZ
+       ========================= */
+
+    #interface {
+      position: fixed;
+
+      top: 20px;
+      left: 20px;
+
+      z-index: 10;
+
+      color: white;
+
+      background: rgba(0, 0, 0, 0.45);
+
+      padding: 14px 18px;
+
+      border-radius: 14px;
+
+      backdrop-filter: blur(8px);
+
+      max-width: calc(100vw - 40px);
+    }
+
+    #interface h1 {
+      font-size: 20px;
+      margin-bottom: 6px;
+    }
+
+    #status {
+      font-size: 13px;
+      opacity: 0.85;
+
+      max-width: 300px;
+    }
+
+    #startButton {
+      margin-top: 12px;
+
+      padding: 10px 16px;
+
+      border: none;
+      border-radius: 10px;
+
+      background: white;
+      color: black;
+
+      font-size: 15px;
+      font-weight: bold;
+
+      cursor: pointer;
+    }
+
+    #startButton:active {
+      transform: scale(0.97);
+    }
+
+    /* =========================
+       CONTROLES
+       ========================= */
+
+    #controls {
+      margin-top: 14px;
+
+      width: 240px;
+    }
+
+    #controls label {
+      display: block;
+
+      font-size: 13px;
+
+      margin-bottom: 7px;
+    }
+
+    #ballControl {
+      width: 100%;
+
+      cursor: pointer;
+    }
+
+    #controlValue {
+      text-align: center;
+
+      font-size: 12px;
+
+      margin-top: 4px;
+
+      opacity: 0.8;
+    }
+
+    /* =========================
+       ESTADO DE LA BOCA
+       ========================= */
+
+    #mouthState {
+      position: fixed;
+
+      bottom: 20px;
+      left: 50%;
+
+      transform: translateX(-50%);
+
+      z-index: 10;
+
+      color: white;
+
+      padding: 10px 18px;
+
+      border-radius: 20px;
+
+      background: rgba(0, 0, 0, 0.45);
+
+      font-size: 14px;
+
+      backdrop-filter: blur(8px);
+
+      white-space: nowrap;
+    }
+
+    /* =========================
+       MÓVIL
+       ========================= */
+
+    @media (max-width: 600px) {
+
+      #interface {
+        top: 10px;
+        left: 10px;
+
+        padding: 10px 13px;
+      }
+
+      #interface h1 {
+        font-size: 17px;
+      }
+
+      #status {
+        font-size: 11px;
+      }
+
+      #startButton {
+        padding: 8px 13px;
+
+        font-size: 13px;
+      }
+
+      #controls {
+        width: 200px;
+      }
+
+      #controls label {
+        font-size: 12px;
+      }
+
+      #mouthState {
+        bottom: 10px;
+
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- =====================================================
+       CÁMARA
+       ===================================================== -->
+
+  <video
+    id="camera"
+    autoplay
+    playsinline
+    muted
+  ></video>
+
+
+  <!-- =====================================================
+       CANVAS DEL JUEGO
+       ===================================================== -->
+
+  <canvas id="game"></canvas>
+
+
+  <!-- =====================================================
+       INTERFAZ
+       ===================================================== -->
+
+  <div id="interface">
+
+    <h1>🎵 Boca Musical</h1>
+
+    <div id="status">
+      Pulsa iniciar y abre la boca.
+    </div>
+
+    <button id="startButton">
+      Iniciar cámara y sonido
+    </button>
+
+
+    <!-- SLIDER -->
+
+    <div id="controls">
+
+      <label for="ballControl">
+        ⚙️ Velocidad / tamaño de las bolas
+      </label>
+
+      <input
+        id="ballControl"
+        type="range"
+        min="0.4"
+        max="2.5"
+        step="0.1"
+        value="1"
+      >
+
+      <div id="controlValue">
+        100%
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       ESTADO DE BOCA
+       ===================================================== -->
+
+  <div id="mouthState">
+    👄 Boca cerrada
+  </div>
+
+
+  <!-- =====================================================
+       JAVASCRIPT
+       ===================================================== -->
+
+  <script type="module">
+
+    /* =====================================================
+       MEDIAPIPE
+       ===================================================== */
+
+    import {
+      FaceLandmarker,
+      FilesetResolver
+    } from
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
+
+
+    /* =====================================================
+       ELEMENTOS
+       ===================================================== */
+
+    const video =
+      document.getElementById("camera");
+
+    const canvas =
+      document.getElementById("game");
+
+    const ctx =
+      canvas.getContext("2d");
+
+    const startButton =
+      document.getElementById("startButton");
+
+    const status =
+      document.getElementById("status");
+
+    const mouthState =
+      document.getElementById("mouthState");
+
+    const ballControl =
+      document.getElementById("ballControl");
+
+    const controlValue =
+      document.getElementById("controlValue");
+
+
+    /* =====================================================
+       TAMAÑO DE PANTALLA
+       ===================================================== */
+
+    let screenWidth =
+      window.innerWidth;
+
+    let screenHeight =
+      window.innerHeight;
+
+
+    function resizeCanvas() {
+
+      screenWidth =
+        window.innerWidth;
+
+      screenHeight =
+        window.innerHeight;
+
+
+      canvas.width =
+        screenWidth;
+
+      canvas.height =
+        screenHeight;
+    }
+
+
+    resizeCanvas();
+
+
+    window.addEventListener(
+      "resize",
+      resizeCanvas
+    );
+
+
+    window.addEventListener(
+      "orientationchange",
+      () => {
+
+        setTimeout(
+          resizeCanvas,
+          300
+        );
+
+      }
+    );
+
+
+    /* =====================================================
+       CONTROL DE VELOCIDAD Y TAMAÑO
+       ===================================================== */
+
+    let ballScale = 1;
+
+    let ballSpeed = 1;
+
+
+    ballControl.addEventListener(
+      "input",
+      () => {
+
+        const value =
+          parseFloat(
+            ballControl.value
+          );
+
+
+        ballScale =
+          value;
+
+        ballSpeed =
+          value;
+
+
+        const percentage =
+          Math.round(
+            value * 100
+          );
+
+
+        controlValue.textContent =
+          percentage + "%";
+      }
+    );
+
+
+    /* =====================================================
+       MEDIAPIPE
+       ===================================================== */
+
+    let faceLandmarker = null;
+
+
+    async function createFaceLandmarker() {
+
+      status.textContent =
+        "Cargando detección facial...";
+
+
+      const vision =
+        await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
+        );
+
+
+      faceLandmarker =
+        await FaceLandmarker.createFromOptions(
+          vision,
+          {
+
+            baseOptions: {
+
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+
+              delegate: "GPU"
+            },
+
+
+            runningMode: "VIDEO",
+
+
+            numFaces: 1,
+
+
+            outputFaceBlendshapes:
+              true,
+
+
+            minFaceDetectionConfidence:
+              0.5,
+
+
+            minFacePresenceConfidence:
+              0.5,
+
+
+            minTrackingConfidence:
+              0.5
+          }
+        );
+
+
+      status.textContent =
+        "Detección facial preparada.";
+    }
+
+
+    /* =====================================================
+       CÁMARA
+       ===================================================== */
+
+    async function startCamera() {
+
+      try {
+
+        status.textContent =
+          "Solicitando acceso a la cámara...";
+
+
+        const stream =
+          await navigator.mediaDevices
+            .getUserMedia(
+              {
+                video: {
+
+                  facingMode: "user",
+
+                  width: {
+                    ideal: 1920
+                  },
+
+                  height: {
+                    ideal: 1080
+                  }
+                },
+
+                audio: false
+              }
+            );
+
+
+        video.srcObject =
+          stream;
+
+
+        await video.play();
+
+
+        await new Promise(
+          resolve => {
+
+            if (
+              video.readyState >= 2
+            ) {
+
+              resolve();
+
+            }
+            else {
+
+              video.onloadedmetadata =
+                resolve;
+            }
+
+          }
+        );
+
+
+        status.textContent =
+          "Cámara activa. ¡Abre la boca!";
+
+
+      }
+      catch (error) {
+
+        console.error(error);
+
+
+        status.textContent =
+          "No se pudo acceder a la cámara.";
+
+
+        alert(
+          "No se pudo acceder a la cámara.\n\n" +
+          "Comprueba que has dado permiso a la cámara " +
+          "y que estás usando HTTPS o localhost."
+        );
+      }
+    }
+
+
+    /* =====================================================
+       AUDIO
+       ===================================================== */
+
+    let audioContext =
+      null;
+
+
+    function startAudio() {
+
+      if (!audioContext) {
+
+        audioContext =
+          new (
+            window.AudioContext ||
+            window.webkitAudioContext
+          )();
+      }
+
+
+      if (
+        audioContext.state ===
+        "suspended"
+      ) {
+
+        audioContext.resume();
+      }
+    }
+
+
+    /* =====================================================
+       SONIDO
+       ===================================================== */
+
+    function playNote(
+      frequency
+    ) {
+
+      if (!audioContext) {
+        return;
+      }
+
+
+      const oscillator =
+        audioContext
+          .createOscillator();
+
+
+      const gain =
+        audioContext
+          .createGain();
+
+
+      oscillator.type =
+        "sine";
+
+
+      oscillator.frequency.value =
+        frequency;
+
+
+      const now =
+        audioContext.currentTime;
+
+
+      gain.gain.setValueAtTime(
+        0,
+        now
+      );
+
+
+      gain.gain.linearRampToValueAtTime(
+        0.25,
+        now + 0.01
+      );
+
+
+      gain.gain.exponentialRampToValueAtTime(
+        0.001,
+        now + 0.35
+      );
+
+
+      oscillator.connect(
+        gain
+      );
+
+
+      gain.connect(
+        audioContext.destination
+      );
+
+
+      oscillator.start(
+        now
+      );
+
+
+      oscillator.stop(
+        now + 0.36
+      );
+    }
+
+
+    /* =====================================================
+       BOLAS
+       ===================================================== */
+
+    const balls = [
+
+      {
+        x: 100,
+        y: 100,
+
+        vx: 3.2,
+        vy: 2.7,
+
+        radius: 24,
+
+        frequency: 261.63,
+
+        color: "#ff4d6d",
+
+        cooldown: 0
+      },
+
+
+      {
+        x: 300,
+        y: 200,
+
+        vx: -3.1,
+        vy: 2.8,
+
+        radius: 24,
+
+        frequency: 329.63,
+
+        color: "#4dabf7",
+
+        cooldown: 0
+      },
+
+
+      {
+        x: 500,
+        y: 300,
+
+        vx: 2.7,
+        vy: -3.0,
+
+        radius: 24,
+
+        frequency: 392.00,
+
+        color: "#51cf66",
+
+        cooldown: 0
+      },
+
+
+      {
+        x: 700,
+        y: 400,
+
+        vx: -2.8,
+        vy: -2.5,
+
+        radius: 24,
+
+        frequency: 523.25,
+
+        color: "#ffd43b",
+
+        cooldown: 0
+      }
+
+    ];
+
+
+    /* =====================================================
+       BOCA
+       ===================================================== */
+
+    let mouth = {
+
+      visible: false,
+
+      open: false,
+
+      x: 0,
+
+      y: 0,
+
+      radiusX: 0,
+
+      radiusY: 0
+    };
+
+
+    /* =====================================================
+       CONVERTIR COORDENADAS MEDIAPIPE
+       A COORDENADAS DE PANTALLA
+       ===================================================== */
+
+    function normalizedToScreen(
+      landmark
+    ) {
+
+      const videoWidth =
+        video.videoWidth;
+
+      const videoHeight =
+        video.videoHeight;
+
+
+      if (
+        !videoWidth ||
+        !videoHeight
+      ) {
+
+        return {
+          x: 0,
+          y: 0
+        };
+      }
+
+
+      /*
+        object-fit: cover
+      */
+
+      const scale =
+        Math.max(
+          screenWidth /
+            videoWidth,
+
+          screenHeight /
+            videoHeight
+        );
+
+
+      const displayedWidth =
+        videoWidth *
+        scale;
+
+
+      const displayedHeight =
+        videoHeight *
+        scale;
+
+
+      /*
+        Parte de la imagen
+        que queda recortada.
+      */
+
+      const cropX =
+        (
+          displayedWidth -
+          screenWidth
+        ) / 2;
+
+
+      const cropY =
+        (
+          displayedHeight -
+          screenHeight
+        ) / 2;
+
+
+      /*
+        El vídeo está espejado.
+
+        Por eso invertimos X.
+      */
+
+      const x =
+        (
+          1 -
+          landmark.x
+        ) *
+          displayedWidth -
+        cropX;
+
+
+      const y =
+        landmark.y *
+          displayedHeight -
+        cropY;
+
+
+      return {
+        x,
+        y
+      };
+    }
+
+
+    /* =====================================================
+       DISTANCIA
+       ===================================================== */
+
+    function distance(
+      a,
+      b
+    ) {
+
+      const dx =
+        a.x - b.x;
+
+      const dy =
+        a.y - b.y;
+
+
+      return Math.sqrt(
+        dx * dx +
+        dy * dy
+      );
+    }
+
+
+    /* =====================================================
+       DETECCIÓN DE CARA
+       ===================================================== */
+
+    let lastDetectionTime =
+      0;
+
+
+    const detectionInterval =
+      33;
+
+
+    function detectFace(
+      timestamp
+    ) {
+
+      if (!faceLandmarker) {
+        return;
+      }
+
+
+      if (
+        video.readyState < 2
+      ) {
+        return;
+      }
+
+
+      /*
+        Aproximadamente 30 FPS.
+      */
+
+      if (
+        timestamp -
+          lastDetectionTime <
+        detectionInterval
+      ) {
+
+        return;
+      }
+
+
+      lastDetectionTime =
+        timestamp;
+
+
+      try {
+
+        const result =
+          faceLandmarker.detectForVideo(
+            video,
+            timestamp
+          );
+
+
+        if (
+          !result.faceLandmarks ||
+          result.faceLandmarks.length === 0
+        ) {
+
+          mouth.visible =
+            false;
+
+
+          mouthState.textContent =
+            "👀 No veo tu cara";
+
+
+          return;
+        }
+
+
+        const landmarks =
+          result.faceLandmarks[0];
+
+
+        /*
+          Puntos de la boca:
+
+          61  = esquina izquierda
+          291 = esquina derecha
+          13  = labio superior
+          14  = labio inferior
+        */
+
+        const left =
+          normalizedToScreen(
+            landmarks[61]
+          );
+
+
+        const right =
+          normalizedToScreen(
+            landmarks[291]
+          );
+
+
+        const upper =
+          normalizedToScreen(
+            landmarks[13]
+          );
+
+
+        const lower =
+          normalizedToScreen(
+            landmarks[14]
+          );
+
+
+        /*
+          Centro
+        */
+
+        const center = {
+
+          x:
+            (
+              left.x +
+              right.x
+            ) / 2,
+
+          y:
+            (
+              upper.y +
+              lower.y
+            ) / 2
+        };
+
+
+        /*
+          Anchura
+        */
+
+        const mouthWidth =
+          distance(
+            left,
+            right
+          );
+
+
+        /*
+          Apertura
+        */
+
+        const mouthOpening =
+          distance(
+            upper,
+            lower
+          );
+
+
+        /*
+          jawOpen
+        */
+
+        let jawOpen =
+          0;
+
+
+        if (
+          result.faceBlendshapes &&
+          result.faceBlendshapes.length > 0
+        ) {
+
+          const categories =
+            result.faceBlendshapes[0]
+              .categories;
+
+
+          const jaw =
+            categories.find(
+              item =>
+                item.categoryName ===
+                "jawOpen"
+            );
+
+
+          if (jaw) {
+
+            jawOpen =
+              jaw.score;
+          }
+        }
+
+
+        /*
+          Boca abierta
+        */
+
+        const isOpen =
+          jawOpen > 0.30 ||
+          mouthOpening >
+            Math.max(
+              10,
+              mouthWidth * 0.18
+            );
+
+
+        mouth.visible =
+          true;
+
+
+        mouth.open =
+          isOpen;
+
+
+        mouth.x =
+          center.x;
+
+
+        mouth.y =
+          center.y;
+
+
+        /*
+          El tamaño de la boca
+          sirve como superficie
+          de rebote.
+        */
+
+        mouth.radiusX =
+          Math.max(
+            30,
+            mouthWidth * 0.65
+          );
+
+
+        mouth.radiusY =
+          isOpen
+            ? Math.max(
+                25,
+                mouthOpening * 2.5
+              )
+            : 12;
+
+
+        if (isOpen) {
+
+          mouthState.textContent =
+            "👄 ¡BOCA ABIERTA!";
+
+        }
+        else {
+
+          mouthState.textContent =
+            "👄 Boca cerrada";
+        }
+
+      }
+      catch (error) {
+
+        console.error(
+          "Error detectando cara:",
+          error
+        );
+      }
+    }
+
+
+    /* =====================================================
+       COLISIÓN BOLA / BOCA
+       ===================================================== */
+
+    function ballHitsMouth(
+      ball
+    ) {
+
+      if (
+        !mouth.visible ||
+        !mouth.open
+      ) {
+
+        return false;
+      }
+
+
+      /*
+        Radio real de la bola
+        teniendo en cuenta
+        el slider.
+      */
+
+      const radius =
+        ball.radius *
+        ballScale;
+
+
+      const dx =
+        ball.x -
+        mouth.x;
+
+
+      const dy =
+        ball.y -
+        mouth.y;
+
+
+      const normalizedX =
+        dx /
+        (
+          mouth.radiusX +
+          radius
+        );
+
+
+      const normalizedY =
+        dy /
+        (
+          mouth.radiusY +
+          radius
+        );
+
+
+      const inside =
+        normalizedX *
+          normalizedX +
+
+        normalizedY *
+          normalizedY
+        <= 1;
+
+
+      return inside;
+    }
+
+
+    /* =====================================================
+       ACTUALIZAR BOLAS
+       ===================================================== */
+
+    function updateBalls() {
+
+      for (
+        const ball of balls
+      ) {
+
+        /*
+          Tamaño actual según
+          el slider.
+        */
+
+        const currentRadius =
+          ball.radius *
+          ballScale;
+
+
+        /*
+          Movimiento.
+
+          ballSpeed viene
+          directamente del slider.
+        */
+
+        ball.x +=
+          ball.vx *
+          ballSpeed;
+
+
+        ball.y +=
+          ball.vy *
+          ballSpeed;
+
+
+        /* =====================
+           IZQUIERDA
+           ===================== */
+
+        if (
+          ball.x -
+            currentRadius <=
+          0
+        ) {
+
+          ball.x =
+            currentRadius;
+
+
+          ball.vx =
+            Math.abs(
+              ball.vx
+            );
+
+
+          playNote(
+            ball.frequency
+          );
+        }
+
+
+        /* =====================
+           DERECHA
+           ===================== */
+
+        if (
+          ball.x +
+            currentRadius >=
+          screenWidth
+        ) {
+
+          ball.x =
+            screenWidth -
+            currentRadius;
+
+
+          ball.vx =
+            -Math.abs(
+              ball.vx
+            );
+
+
+          playNote(
+            ball.frequency
+          );
+        }
+
+
+        /* =====================
+           ARRIBA
+           ===================== */
+
+        if (
+          ball.y -
+            currentRadius <=
+          0
+        ) {
+
+          ball.y =
+            currentRadius;
+
+
+          ball.vy =
+            Math.abs(
+              ball.vy
+            );
+
+
+          playNote(
+            ball.frequency
+          );
+        }
+
+
+        /* =====================
+           ABAJO
+           ===================== */
+
+        if (
+          ball.y +
+            currentRadius >=
+          screenHeight
+        ) {
+
+          ball.y =
+            screenHeight -
+            currentRadius;
+
+
+          ball.vy =
+            -Math.abs(
+              ball.vy
+            );
+
+
+          playNote(
+            ball.frequency
+          );
+        }
+
+
+        /* =====================
+           COOLDOWN
+           ===================== */
+
+        if (
+          ball.cooldown > 0
+        ) {
+
+          ball.cooldown--;
+        }
+
+
+        /* =====================
+           BOCA
+           ===================== */
+
+        if (
+          ball.cooldown <= 0 &&
+          ballHitsMouth(ball)
+        ) {
+
+          let dx =
+            ball.x -
+            mouth.x;
+
+
+          let dy =
+            ball.y -
+            mouth.y;
+
+
+          let length =
+            Math.sqrt(
+              dx * dx +
+              dy * dy
+            );
+
+
+          if (
+            length < 0.001
+          ) {
+
+            dx = 1;
+            dy = 0;
+
+            length = 1;
+          }
+
+
+          dx /= length;
+          dy /= length;
+
+
+          /*
+            Sacamos la bola
+            fuera de la boca.
+          */
+
+          ball.x =
+            mouth.x +
+            dx *
+              (
+                mouth.radiusX +
+                currentRadius +
+                3
+              );
+
+
+          ball.y =
+            mouth.y +
+            dy *
+              (
+                mouth.radiusY +
+                currentRadius +
+                3
+              );
+
+
+          /*
+            Reflexión
+          */
+
+          const dot =
+            ball.vx * dx +
+            ball.vy * dy;
+
+
+          ball.vx =
+            ball.vx -
+            2 *
+            dot *
+            dx;
+
+
+          ball.vy =
+            ball.vy -
+            2 *
+            dot *
+            dy;
+
+
+          /*
+            Un pequeño impulso
+          */
+
+          ball.vx *= 1.03;
+
+          ball.vy *= 1.03;
+
+
+          /*
+            Limitar velocidad máxima.
+          */
+
+          const speed =
+            Math.sqrt(
+              ball.vx *
+                ball.vx +
+              ball.vy *
+                ball.vy
+            );
+
+
+          const maxSpeed =
+            10;
+
+
+          if (
+            speed >
+            maxSpeed
+          ) {
+
+            ball.vx =
+              ball.vx /
+              speed *
+              maxSpeed;
+
+
+            ball.vy =
+              ball.vy /
+              speed *
+              maxSpeed;
+          }
+
+
+          /*
+            Sonido
+          */
+
+          playNote(
+            ball.frequency
+          );
+
+
+          /*
+            Evitar múltiples
+            colisiones consecutivas.
+          */
+
+          ball.cooldown =
+            12;
+        }
+      }
+    }
+
+
+    /* =====================================================
+       DIBUJAR BOCA
+       ===================================================== */
+
+    function drawMouth() {
+
+      if (
+        !mouth.visible
+      ) {
+
+        return;
+      }
+
+
+      ctx.save();
+
+
+      ctx.beginPath();
+
+
+      ctx.ellipse(
+
+        mouth.x,
+        mouth.y,
+
+        mouth.radiusX,
+        mouth.radiusY,
+
+        0,
+
+        0,
+        Math.PI * 2
+
+      );
+
+
+      ctx.lineWidth =
+        mouth.open
+          ? 5
+          : 2;
+
+
+      ctx.strokeStyle =
+        mouth.open
+          ? "rgba(255,255,255,0.9)"
+          : "rgba(255,255,255,0.35)";
+
+
+      ctx.stroke();
+
+
+      /*
+        Punto central
+      */
+
+      if (
+        mouth.open
+      ) {
+
+        ctx.beginPath();
+
+
+        ctx.arc(
+          mouth.x,
+          mouth.y,
+          4,
+          0,
+          Math.PI * 2
+        );
+
+
+        ctx.fillStyle =
+          "white";
+
+
+        ctx.fill();
+      }
+
+
+      ctx.restore();
+    }
+
+
+    /* =====================================================
+       DIBUJAR BOLAS
+       ===================================================== */
+
+    function drawBalls() {
+
+      for (
+        const ball of balls
+      ) {
+
+        const currentRadius =
+          ball.radius *
+          ballScale;
+
+
+        ctx.save();
+
+
+        /*
+          Sombra
+        */
+
+        ctx.shadowBlur =
+          20;
+
+
+        ctx.shadowColor =
+          ball.color;
+
+
+        /*
+          Bola
+        */
+
+        ctx.beginPath();
+
+
+        ctx.arc(
+
+          ball.x,
+          ball.y,
+
+          currentRadius,
+
+          0,
+          Math.PI * 2
+
+        );
+
+
+        ctx.fillStyle =
+          ball.color;
+
+
+        ctx.fill();
+
+
+        /*
+          Brillo
+        */
+
+        ctx.shadowBlur =
+          0;
+
+
+        ctx.beginPath();
+
+
+        ctx.arc(
+
+          ball.x -
+            currentRadius *
+            0.30,
+
+          ball.y -
+            currentRadius *
+            0.30,
+
+          currentRadius *
+            0.22,
+
+          0,
+          Math.PI * 2
+
+        );
+
+
+        ctx.fillStyle =
+          "rgba(255,255,255,0.8)";
+
+
+        ctx.fill();
+
+
+        /*
+          Nombre de nota
+        */
+
+        ctx.fillStyle =
+          "rgba(0,0,0,0.65)";
+
+
+        ctx.font =
+          "bold 11px Arial";
+
+
+        ctx.textAlign =
+          "center";
+
+
+        ctx.textBaseline =
+          "middle";
+
+
+        let note;
+
+
+        if (
+          ball.frequency ===
+          261.63
+        ) {
+
+          note = "C4";
+
+        }
+        else if (
+          ball.frequency ===
+          329.63
+        ) {
+
+          note = "E4";
+
+        }
+        else if (
+          ball.frequency ===
+          392
+        ) {
+
+          note = "G4";
+
+        }
+        else {
+
+          note = "C5";
+        }
+
+
+        ctx.fillText(
+
+          note,
+
+          ball.x,
+          ball.y
+
+        );
+
+
+        ctx.restore();
+      }
+    }
+
+
+    /* =====================================================
+       DIBUJAR
+       ===================================================== */
+
+    function draw() {
+
+      ctx.clearRect(
+
+        0,
+        0,
+
+        screenWidth,
+        screenHeight
+
+      );
+
+
+      drawMouth();
+
+      drawBalls();
+    }
+
+
+    /* =====================================================
+       LOOP
+       ===================================================== */
+
+    let animationRunning =
+      false;
+
+
+    function animationLoop(
+      timestamp
+    ) {
+
+      if (
+        !animationRunning
+      ) {
+
+        return;
+      }
+
+
+      /*
+        Detectar cara
+      */
+
+      detectFace(
+        timestamp
+      );
+
+
+      /*
+        Actualizar física
+      */
+
+      updateBalls();
+
+
+      /*
+        Dibujar
+      */
+
+      draw();
+
+
+      requestAnimationFrame(
+        animationLoop
+      );
+    }
+
+
+    /* =====================================================
+       BOTÓN DE INICIO
+       ===================================================== */
+
+    startButton.addEventListener(
+      "click",
+      async () => {
+
+        startButton.disabled =
+          true;
+
+
+        startButton.textContent =
+          "Iniciando...";
+
+
+        try {
+
+          /*
+            Audio
+          */
+
+          startAudio();
+
+
+          /*
+            Cámara
+          */
+
+          await startCamera();
+
+
+          /*
+            MediaPipe
+          */
+
+          if (
+            !faceLandmarker
+          ) {
+
+            await createFaceLandmarker();
+          }
+
+
+          /*
+            Iniciar juego
+          */
+
+          animationRunning =
+            true;
+
+
+          requestAnimationFrame(
+            animationLoop
+          );
+
+
+          /*
+            Ocultar botón
+          */
+
+          startButton.style.display =
+            "none";
+
+
+          status.textContent =
+            "🎵 ¡Todo listo! Abre la boca y juega.";
+
+        }
+        catch (error) {
+
+          console.error(
+            error
+          );
+
+
+          startButton.disabled =
+            false;
+
+
+          startButton.textContent =
+            "Reintentar";
+
+
+          status.textContent =
+            "Error al iniciar.";
+        }
+
+      }
+    );
+
+
+    /* =====================================================
+       INICIO VISUAL
+       ===================================================== */
+
+    draw();
+
+  </script>
+
+</body>
+</html>
