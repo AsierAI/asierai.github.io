@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Stanford Bunny — Reflexión</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #050505;
+    color: white;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+canvas {
+    display: block;
+}
+
+#loading {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #050505;
+    color: #aaa;
+
+    font-size: 12px;
+    letter-spacing: 0.12em;
+}
+
+#ui {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+
+    width: 280px;
+    padding: 18px;
+
+    background: rgba(10,10,10,0.84);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+
+    backdrop-filter: blur(12px);
+
+    box-shadow:
+        0 15px 40px rgba(0,0,0,0.45);
+}
+
+#title {
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 0.08em;
+}
+
+#subtitle {
+    margin-top: 3px;
+    margin-bottom: 18px;
+
+    color: #888;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+}
+
+.control {
+    margin-bottom: 14px;
+}
+
+.label {
+    display: flex;
+    justify-content: space-between;
+
+    margin-bottom: 6px;
+
+    color: #aaa;
+    font-size: 11px;
+}
+
+.value {
+    color: white;
+}
+
+input[type="range"] {
+    width: 100%;
+}
+
+button {
+    width: 100%;
+
+    margin-top: 7px;
+    padding: 9px;
+
+    border:
+        1px solid
+        rgba(255,255,255,0.18);
+
+    border-radius: 8px;
+
+    background:
+        rgba(255,255,255,0.07);
+
+    color: white;
+
+    cursor: pointer;
+    font-size: 11px;
+}
+
+button:hover {
+    background:
+        rgba(255,255,255,0.14);
+}
+
+#info {
+    margin-top: 12px;
+    padding-top: 10px;
+
+    border-top:
+        1px solid
+        rgba(255,255,255,0.08);
+
+    color: #666;
+
+    font-size: 9px;
+    line-height: 1.5;
+}
+</style>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+
+</head>
+
+<body>
+
+<div id="loading">
+    CARGANDO STANFORD BUNNY...
+</div>
+
+
+<div id="ui">
+
+    <div id="title">
+        STANFORD BUNNY
+    </div>
+
+    <div id="subtitle">
+        POINT CLOUD
+    </div>
+
+
+    <div class="control">
+
+        <div class="label">
+            <span>VELOCIDAD</span>
+            <span class="value" id="speedValue">
+                0.45
+            </span>
+        </div>
+
+        <input
+            id="speed"
+            type="range"
+            min="0"
+            max="2"
+            step="0.01"
+            value="0.45"
+        >
+
+    </div>
+
+
+    <div class="control">
+
+        <div class="label">
+            <span>RESOLUCIÓN</span>
+            <span class="value" id="resolutionValue">
+                100%
+            </span>
+        </div>
+
+        <input
+            id="resolution"
+            type="range"
+            min="1"
+            max="100"
+            step="1"
+            value="100"
+        >
+
+        <div class="label" style="margin-top:6px;">
+
+            <span>PUNTOS</span>
+
+            <span
+                class="value"
+                id="pointCount"
+            >
+                —
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <button id="modeButton">
+        PUNTOS → 3D
+    </button>
+
+
+    <button id="reflectionButton">
+        REFLEJAR
+    </button>
+
+
+    <button id="pauseButton">
+        PAUSAR
+    </button>
+
+
+    <button id="colorButton">
+        CAMBIAR COLOR
+    </button>
+
+
+    <div id="info">
+
+        PLANO DE REFLEXIÓN<br>
+
+        Pasa por el centro del conejo y es
+        siempre perpendicular al haz central
+        de la cámara.
+
+    </div>
+
+</div>
+
+
+<script type="module">
+
+import * as THREE from "three";
+
+import {
+    PLYLoader
+} from "three/addons/loaders/PLYLoader.js";
+
+import {
+    OrbitControls
+} from "three/addons/controls/OrbitControls.js";
+
+
+/* =========================================================
+   CONFIGURACIÓN
+========================================================= */
+
+const MODEL_URL =
+    "https://raw.githubusercontent.com/naucoin/VTKData/master/Data/bunny.ply";
+
+
+let rotationSpeed = 0.45;
+
+let rotation = 0;
+
+let autoRotate = true;
+
+let reflectionEnabled = false;
+
+let surfaceMode = false;
+
+let colorIndex = 0;
+
+
+const colors = [
+    0xffffff,
+    0x00d4ff,
+    0xff5577,
+    0xffcc44,
+    0x88ff88,
+    0xbb88ff
+];
+
+
+/* =========================================================
+   ESCENA
+========================================================= */
+
+const scene =
+    new THREE.Scene();
+
+scene.background =
+    new THREE.Color(0x050505);
+
+
+/* =========================================================
+   CÁMARA ORTOGRÁFICA
+========================================================= */
+
+const frustumSize = 3.2;
+
+let aspect =
+    window.innerWidth /
+    window.innerHeight;
+
+
+const camera =
+    new THREE.OrthographicCamera(
+
+        -frustumSize * aspect / 2,
+
+         frustumSize * aspect / 2,
+
+         frustumSize / 2,
+
+        -frustumSize / 2,
+
+        0.01,
+        100
+    );
+
+
+camera.position.set(
+    0,
+    0.25,
+    3.5
+);
+
+camera.lookAt(
+    0,
+    0,
+    0
+);
+
+
+/* =========================================================
+   RENDERER
+========================================================= */
+
+const renderer =
+    new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: "high-performance"
+    });
+
+
+renderer.setPixelRatio(
+    Math.min(
+        window.devicePixelRatio,
+        2
+    )
+);
+
+
+renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
+);
+
+
+renderer.shadowMap.enabled = true;
+
+renderer.shadowMap.type =
+    THREE.PCFSoftShadowMap;
+
+
+renderer.outputColorSpace =
+    THREE.SRGBColorSpace;
+
+
+document.body.appendChild(
+    renderer.domElement
+);
+
+
+/* =========================================================
+   CONTROLES
+========================================================= */
+
+const controls =
+    new OrbitControls(
+        camera,
+        renderer.domElement
+    );
+
+
+controls.enableDamping = true;
+
+controls.dampingFactor = 0.06;
+
+controls.target.set(
+    0,
+    0,
+    0
+);
+
+
+/* =========================================================
+   LUCES
+========================================================= */
+
+const hemisphere =
+    new THREE.HemisphereLight(
+        0xffffff,
+        0x222222,
+        2.2
+    );
+
+scene.add(
+    hemisphere
+);
+
+
+const keyLight =
+    new THREE.DirectionalLight(
+        0xffffff,
+        4
+    );
+
+
+keyLight.position.set(
+    3,
+    5,
+    4
+);
+
+keyLight.castShadow = true;
+
+keyLight.shadow.mapSize.set(
+    2048,
+    2048
+);
+
+scene.add(
+    keyLight
+);
+
+
+const fillLight =
+    new THREE.DirectionalLight(
+        0x88aaff,
+        1.5
+    );
+
+
+fillLight.position.set(
+    -4,
+    2,
+    2
+);
+
+scene.add(
+    fillLight
+);
+
+
+const rimLight =
+    new THREE.DirectionalLight(
+        0xffffff,
+        1.5
+    );
+
+
+rimLight.position.set(
+    0,
+    3,
+    -5
+);
+
+scene.add(
+    rimLight
+);
+
+
+/* =========================================================
+   SUELO
+========================================================= */
+
+const floor =
+    new THREE.Mesh(
+
+        new THREE.PlaneGeometry(
+            20,
+            20
+        ),
+
+        new THREE.ShadowMaterial({
+            opacity: 0.22
+        })
+    );
+
+
+floor.rotation.x =
+    -Math.PI / 2;
+
+floor.position.y =
+    -1.05;
+
+floor.receiveShadow = true;
+
+scene.add(
+    floor
+);
+
+
+/* =========================================================
+   JERARQUÍA DEL CONEJO
+========================================================= */
+
+/*
+    MUY IMPORTANTE:
+
+        reflectionGroup
+             |
+             └── bunnyGroup
+                    |
+                    ├── points
+                    └── surface
+
+
+    bunnyGroup:
+        solamente rota el conejo.
+
+
+    reflectionGroup:
+        solamente refleja el conejo.
+
+    Esto evita mezclar ambas operaciones.
+*/
+
+
+const reflectionGroup =
+    new THREE.Group();
+
+
+scene.add(
+    reflectionGroup
+);
+
+
+const bunnyGroup =
+    new THREE.Group();
+
+
+reflectionGroup.add(
+    bunnyGroup
+);
+
+
+/* =========================================================
+   MATERIALES
+========================================================= */
+
+const pointMaterial =
+    new THREE.PointsMaterial({
+
+        color:
+            colors[colorIndex],
+
+        size:
+            0.014,
+
+        sizeAttenuation:
+            true,
+
+        transparent:
+            true,
+
+        opacity:
+            0.95,
+
+        depthWrite:
+            false
+    });
+
+
+const surfaceMaterial =
+    new THREE.MeshStandardMaterial({
+
+        color:
+            colors[colorIndex],
+
+        roughness:
+            0.58,
+
+        metalness:
+            0,
+
+        side:
+            THREE.DoubleSide
+    });
+
+
+/* =========================================================
+   GEOMETRÍAS
+========================================================= */
+
+let originalGeometry = null;
+
+let pointGeometry = null;
+
+let points = null;
+
+let surface = null;
+
+let originalPositions = null;
+
+let totalPoints = 0;
+
+
+/* =========================================================
+   CARGAR PLY
+========================================================= */
+
+const loader =
+    new PLYLoader();
+
+
+loader.load(
+
+    MODEL_URL,
+
+    geometry => {
+
+        /* ---------------------------------------------
+           CENTRAR MODELO
+        --------------------------------------------- */
+
+        geometry.computeBoundingBox();
+
+
+        const center =
+            new THREE.Vector3();
+
+
+        geometry.boundingBox.getCenter(
+            center
+        );
+
+
+        geometry.translate(
+            -center.x,
+            -center.y,
+            -center.z
+        );
+
+
+        /* ---------------------------------------------
+           NORMALIZAR
+        --------------------------------------------- */
+
+        geometry.computeBoundingBox();
+
+
+        const size =
+            new THREE.Vector3();
+
+
+        geometry.boundingBox.getSize(
+            size
+        );
+
+
+        const maxDimension =
+            Math.max(
+                size.x,
+                size.y,
+                size.z
+            );
+
+
+        const scale =
+            2 / maxDimension;
+
+
+        geometry.scale(
+            scale,
+            scale,
+            scale
+        );
+
+
+        /* ---------------------------------------------
+           NORMALES
+        --------------------------------------------- */
+
+        geometry.computeVertexNormals();
+
+
+        /* ---------------------------------------------
+           GEOMETRÍA ORIGINAL
+        --------------------------------------------- */
+
+        originalGeometry =
+            geometry.clone();
+
+
+        const position =
+            originalGeometry
+                .attributes
+                .position;
+
+
+        originalPositions =
+            new Float32Array(
+                position.array
+            );
+
+
+        totalPoints =
+            position.count;
+
+
+        /* ---------------------------------------------
+           POINT CLOUD
+        --------------------------------------------- */
+
+        pointGeometry =
+            new THREE.BufferGeometry();
+
+
+        updateResolution(
+            100
+        );
+
+
+        points =
+            new THREE.Points(
+                pointGeometry,
+                pointMaterial
+            );
+
+
+        points.frustumCulled =
+            false;
+
+
+        bunnyGroup.add(
+            points
+        );
+
+
+        /* ---------------------------------------------
+           SUPERFICIE
+        --------------------------------------------- */
+
+        surface =
+            new THREE.Mesh(
+                originalGeometry,
+                surfaceMaterial
+            );
+
+
+        surface.castShadow =
+            true;
+
+
+        surface.receiveShadow =
+            true;
+
+
+        surface.visible =
+            false;
+
+
+        bunnyGroup.add(
+            surface
+        );
+
+
+        /* ---------------------------------------------
+           FIN
+        --------------------------------------------- */
+
+        document.getElementById(
+            "loading"
+        ).style.display =
+            "none";
+    },
+
+
+    xhr => {
+
+        if (xhr.total) {
+
+            const progress =
+                Math.round(
+                    xhr.loaded /
+                    xhr.total *
+                    100
+                );
+
+
+            document.getElementById(
+                "loading"
+            ).textContent =
+                `CARGANDO STANFORD BUNNY ${progress}%`;
+        }
+    },
+
+
+    error => {
+
+        console.error(
+            error
+        );
+
+
+        document.getElementById(
+            "loading"
+        ).textContent =
+            "ERROR CARGANDO EL MODELO";
+    }
+);
+
+
+/* =========================================================
+   RESOLUCIÓN
+========================================================= */
+
+function updateResolution(
+    percentage
+) {
+
+    if (
+        !originalPositions ||
+        !pointGeometry
+    )
+        return;
+
+
+    const count =
+        Math.max(
+            1,
+
+            Math.floor(
+                totalPoints *
+                percentage /
+                100
+            )
+        );
+
+
+    const data =
+        new Float32Array(
+            count * 3
+        );
+
+
+    const step =
+        totalPoints / count;
+
+
+    for (
+        let i = 0;
+        i < count;
+        i++
+    ) {
+
+        const source =
+            Math.floor(
+                i * step
+            );
+
+
+        data[i * 3] =
+            originalPositions[
+                source * 3
+            ];
+
+
+        data[i * 3 + 1] =
+            originalPositions[
+                source * 3 + 1
+            ];
+
+
+        data[i * 3 + 2] =
+            originalPositions[
+                source * 3 + 2
+            ];
+    }
+
+
+    pointGeometry.setAttribute(
+
+        "position",
+
+        new THREE.BufferAttribute(
+            data,
+            3
+        )
+    );
+
+
+    pointGeometry.computeBoundingSphere();
+
+
+    document.getElementById(
+        "pointCount"
+    ).textContent =
+        count.toLocaleString();
+}
+
+
+/* =========================================================
+   REFLEXIÓN
+========================================================= */
+
+/*
+    AQUÍ ESTÁ LA PARTE IMPORTANTE.
+
+    Queremos un plano:
+
+        n · (x - C) = 0
+
+    donde:
+
+        C = centro del conejo
+
+        n = dirección del haz central
+            de la cámara.
+
+    La cámara ortográfica tiene rayos
+    paralelos, así que getWorldDirection()
+    nos da exactamente esa dirección.
+
+    La matriz de reflexión es:
+
+        R = I - 2 n nᵀ
+
+    Como el centro del conejo está en
+    el origen, no necesitamos traslaciones.
+*/
+
+
+const cameraDirection =
+    new THREE.Vector3();
+
+
+const reflectionMatrix =
+    new THREE.Matrix4();
+
+
+function updateReflection() {
+
+    /*
+       Dirección del haz de la cámara.
+    */
+
+    camera.getWorldDirection(
+        cameraDirection
+    );
+
+
+    cameraDirection.normalize();
+
+
+    const nx =
+        cameraDirection.x;
+
+    const ny =
+        cameraDirection.y;
+
+    const nz =
+        cameraDirection.z;
+
+
+    /*
+       Reflexión respecto al plano
+       perpendicular a la dirección
+       de la cámara.
+    */
+
+    reflectionMatrix.set(
+
+        1 - 2 * nx * nx,
+        -2 * nx * ny,
+        -2 * nx * nz,
+        0,
+
+        -2 * ny * nx,
+        1 - 2 * ny * ny,
+        -2 * ny * nz,
+        0,
+
+        -2 * nz * nx,
+        -2 * nz * ny,
+        1 - 2 * nz * nz,
+        0,
+
+        0,
+        0,
+        0,
+        1
+    );
+
+
+    /*
+       Si el reflejo está activo,
+       reflectionGroup ES la reflexión.
+
+       El conejo no se toca.
+    */
+
+    if (reflectionEnabled) {
+
+        reflectionGroup.matrixAutoUpdate =
+            false;
+
+        reflectionGroup.matrix.copy(
+            reflectionMatrix
+        );
+
+        reflectionGroup.matrixWorldNeedsUpdate =
+            true;
+
+    } else {
+
+        reflectionGroup.matrixAutoUpdate =
+            true;
+
+        reflectionGroup.position.set(
+            0,
+            0,
+            0
+        );
+
+        reflectionGroup.rotation.set(
+            0,
+            0,
+            0
+        );
+
+        reflectionGroup.scale.set(
+            1,
+            1,
+            1
+        );
+
+        reflectionGroup.updateMatrix();
+    }
+}
+
+
+/* =========================================================
+   ANIMACIÓN DEL CONEJO
+========================================================= */
+
+function updateBunny() {
+
+    /*
+       La figura solamente gira.
+
+       La reflexión NO forma parte
+       de esta transformación.
+    */
+
+    bunnyGroup.rotation.set(
+
+        -0.10,
+
+        rotation,
+
+        0
+    );
+}
+
+
+/* =========================================================
+   UI — VELOCIDAD
+========================================================= */
+
+document.getElementById(
+    "speed"
+).addEventListener(
+    "input",
+    event => {
+
+        rotationSpeed =
+            parseFloat(
+                event.target.value
+            );
+
+
+        document.getElementById(
+            "speedValue"
+        ).textContent =
+            rotationSpeed.toFixed(2);
+    }
+);
+
+
+/* =========================================================
+   UI — RESOLUCIÓN
+========================================================= */
+
+document.getElementById(
+    "resolution"
+).addEventListener(
+    "input",
+    event => {
+
+        const value =
+            parseInt(
+                event.target.value
+            );
+
+
+        document.getElementById(
+            "resolutionValue"
+        ).textContent =
+            `${value}%`;
+
+
+        updateResolution(
+            value
+        );
+    }
+);
+
+
+/* =========================================================
+   UI — PUNTOS / SUPERFICIE
+========================================================= */
+
+document.getElementById(
+    "modeButton"
+).addEventListener(
+    "click",
+    () => {
+
+        surfaceMode =
+            !surfaceMode;
+
+
+        if (points) {
+
+            points.visible =
+                !surfaceMode;
+        }
+
+
+        if (surface) {
+
+            surface.visible =
+                surfaceMode;
+        }
+
+
+        document.getElementById(
+            "modeButton"
+        ).textContent =
+
+            surfaceMode
+                ? "3D → PUNTOS"
+                : "PUNTOS → 3D";
+
+
+        document.getElementById(
+            "subtitle"
+        ).textContent =
+
+            surfaceMode
+                ? "3D SURFACE"
+                : "POINT CLOUD";
+    }
+);
+
+
+/* =========================================================
+   UI — REFLEXIÓN
+========================================================= */
+
+document.getElementById(
+    "reflectionButton"
+).addEventListener(
+    "click",
+    () => {
+
+        reflectionEnabled =
+            !reflectionEnabled;
+
+
+        document.getElementById(
+            "reflectionButton"
+        ).textContent =
+
+            reflectionEnabled
+                ? "QUITAR REFLEJO"
+                : "REFLEJAR";
+
+
+        updateReflection();
+    }
+);
+
+
+/* =========================================================
+   UI — PAUSA
+========================================================= */
+
+document.getElementById(
+    "pauseButton"
+).addEventListener(
+    "click",
+    () => {
+
+        autoRotate =
+            !autoRotate;
+
+
+        document.getElementById(
+            "pauseButton"
+        ).textContent =
+
+            autoRotate
+                ? "PAUSAR"
+                : "CONTINUAR";
+    }
+);
+
+
+/* =========================================================
+   UI — COLOR
+========================================================= */
+
+document.getElementById(
+    "colorButton"
+).addEventListener(
+    "click",
+    () => {
+
+        colorIndex =
+            (colorIndex + 1) %
+            colors.length;
+
+
+        pointMaterial.color.setHex(
+            colors[colorIndex]
+        );
+
+
+        surfaceMaterial.color.setHex(
+            colors[colorIndex]
+        );
+    }
+);
+
+
+/* =========================================================
+   RESIZE
+========================================================= */
+
+window.addEventListener(
+    "resize",
+    () => {
+
+        const aspect =
+            window.innerWidth /
+            window.innerHeight;
+
+
+        camera.left =
+            -frustumSize *
+            aspect /
+            2;
+
+
+        camera.right =
+            frustumSize *
+            aspect /
+            2;
+
+
+        camera.top =
+            frustumSize /
+            2;
+
+
+        camera.bottom =
+            -frustumSize /
+            2;
+
+
+        camera.updateProjectionMatrix();
+
+
+        renderer.setSize(
+            window.innerWidth,
+            window.innerHeight
+        );
+    }
+);
+
+
+/* =========================================================
+   ANIMACIÓN
+========================================================= */
+
+const clock =
+    new THREE.Clock();
+
+
+function animate() {
+
+    requestAnimationFrame(
+        animate
+    );
+
+
+    const delta =
+        clock.getDelta();
+
+
+    /*
+       Primero dejamos que OrbitControls
+       actualice la cámara.
+    */
+
+    controls.update();
+
+
+    /*
+       Después actualizamos el giro.
+    */
+
+    if (autoRotate) {
+
+        rotation +=
+            rotationSpeed *
+            delta;
+    }
+
+
+    /*
+       El conejo gira independientemente.
+    */
+
+    updateBunny();
+
+
+    /*
+       Y DESPUÉS calculamos el plano
+       de reflexión usando la cámara
+       actual.
+
+       Por eso el plano cambia
+       automáticamente al mover la cámara.
+    */
+
+    updateReflection();
+
+
+    renderer.render(
+        scene,
+        camera
+    );
+}
+
+
+animate();
+
+</script>
+
+</body>
+</html>
