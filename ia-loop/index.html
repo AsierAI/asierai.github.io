@@ -1,0 +1,540 @@
+
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image Loop — Generar y describir</title>
+
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0b1020;
+  --panel: #121a2d;
+  --line: #26334d;
+  --text: #edf2ff;
+  --muted: #9ba9c5;
+  --accent: #8b9cff;
+  --good: #78e0b5;
+  --bad: #ff9caa;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 16px/1.5 system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+main {
+  max-width: 1000px;
+  margin: auto;
+  padding: 24px 14px 50px;
+}
+
+h1 { font-size: 2rem; line-height: 1.15; }
+h2 { font-size: 1.1rem; margin-top: 0; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 18px;
+}
+
+label {
+  display: block;
+  font-weight: 650;
+  margin: 12px 0 6px;
+}
+
+textarea, select {
+  width: 100%;
+  background: #0b1222;
+  color: var(--text);
+  border: 1px solid #34425f;
+  border-radius: 10px;
+  padding: 11px;
+  font: inherit;
+}
+
+textarea { min-height: 100px; }
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 15px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--accent);
+  color: #0a1020;
+}
+
+button.secondary {
+  background: #25324d;
+  color: var(--text);
+}
+
+button.danger {
+  background: #552a3a;
+  color: white;
+}
+
+button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.status {
+  padding: 12px;
+  background: #0b1222;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 14px;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.status.error { color: var(--bad); }
+.status.ok { color: var(--good); }
+
+.note, .muted {
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.item {
+  border: 1px solid var(--line);
+  background: #0d1527;
+  border-radius: 14px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.item img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  background: #070b14;
+  display: block;
+}
+
+.item-body { padding: 12px; }
+
+.description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.small {
+  color: var(--muted);
+  font-size: .85rem;
+  overflow-wrap: anywhere;
+}
+
+a { color: #c3ceff; }
+
+@media (max-width: 650px) {
+  .row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+
+<body>
+<main>
+  <h1>Image Loop</h1>
+  <p class="muted">
+    Genera una imagen, descríbela y utiliza esa descripción
+    para generar la siguiente.
+  </p>
+
+  <section class="panel">
+    <h2>Configuración</h2>
+
+    <label for="prompt">Prompt inicial</label>
+    <textarea id="prompt">Un pequeño zorro explorador en un bosque mágico, luz cinematográfica, ilustración detallada</textarea>
+
+    <div class="row">
+      <div>
+        <label for="iterations">Iteraciones</label>
+        <select id="iterations">
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="3">3</option>
+          <option value="5">5</option>
+          <option value="10">10</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="ratio">Formato</label>
+        <select id="ratio">
+          <option value="1:1">Cuadrado</option>
+          <option value="16:9">Horizontal</option>
+          <option value="9:16">Vertical</option>
+          <option value="4:3">4:3</option>
+          <option value="3:4">3:4</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="mode">Evolución del prompt</label>
+        <select id="mode">
+          <option value="description">Usar descripción</option>
+          <option value="combine">Combinar con prompt original</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="start">▶ Iniciar bucle</button>
+      <button id="stop" class="danger" disabled>■ Detener</button>
+      <button id="clear" class="secondary">Limpiar resultados</button>
+    </div>
+
+    <div id="status" class="status" role="status" aria-live="polite">
+      Listo. Empieza con una iteración para probar las APIs.
+    </div>
+
+    <p class="note">
+      APIs externas: PixelSter y VisionSter.
+      Su disponibilidad, límites y política de uso pueden cambiar.
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2>Resultados <span id="count" class="muted">(0)</span></h2>
+    <div id="gallery" class="gallery"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const GENERATE_URL =
+    "https://ahm7xmakki.com/api/tti";
+
+  const DESCRIBE_URL =
+    "https://www.ahm7xmakki.com/api/imgchat";
+
+  const $ = id => document.getElementById(id);
+
+  const startBtn = $("start");
+  const stopBtn = $("stop");
+  const clearBtn = $("clear");
+  const statusBox = $("status");
+  const gallery = $("gallery");
+  const count = $("count");
+
+  let stopRequested = false;
+  let running = false;
+  let resultsCount = 0;
+
+  function setStatus(message, kind = "") {
+    statusBox.textContent = message;
+    statusBox.className = "status " + kind;
+  }
+
+  async function postJson(url, body) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    let data;
+
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(
+        `HTTP ${response.status}: la API no devolvió JSON válido.`
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data?.error ||
+        data?.message ||
+        `Error HTTP ${response.status}`
+      );
+    }
+
+    return data;
+  }
+
+  // 1. Generar imagen desde texto.
+  async function generateImage(prompt, ratio) {
+    const data = await postJson(GENERATE_URL, {
+      prompt,
+      ratio
+    });
+
+    if (data?.success === false) {
+      throw new Error(data.error || "Falló la generación.");
+    }
+
+    const url =
+      data?.imageUrl ||
+      data?.url ||
+      data?.image;
+
+    if (typeof url !== "string" ||
+        !/^https?:\/\//i.test(url)) {
+      throw new Error(
+        "La respuesta de generación no contiene una URL reconocible: " +
+        JSON.stringify(data).slice(0, 300)
+      );
+    }
+
+    return url;
+  }
+
+  // 2. Describir la imagen.
+  async function describeImage(imageUrl) {
+    const data = await postJson(DESCRIBE_URL, {
+      url: imageUrl,
+      userPrompt:
+        "Describe con precisión la imagen en español. " +
+        "Indica los sujetos, el entorno, los colores, " +
+        "la composición y el estilo visual. " +
+        "No inventes detalles que no se vean."
+    });
+
+    if (data?.success === false) {
+      throw new Error(data.error || "Falló la descripción.");
+    }
+
+    const description =
+      data?.response ||
+      data?.description ||
+      data?.text;
+
+    if (typeof description !== "string") {
+      throw new Error(
+        "No se encontró el texto en la respuesta: " +
+        JSON.stringify(data).slice(0, 300)
+      );
+    }
+
+    return description.trim();
+  }
+
+  function addResult(iteration, prompt, imageUrl, description) {
+    resultsCount++;
+    count.textContent = `(${resultsCount})`;
+
+    const article = document.createElement("article");
+    article.className = "item";
+
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.alt = `Imagen de la iteración ${iteration}`;
+    img.loading = "lazy";
+
+    const body = document.createElement("div");
+    body.className = "item-body";
+
+    const heading = document.createElement("h3");
+    heading.textContent = `Iteración ${iteration}`;
+
+    const desc = document.createElement("p");
+    desc.className = "description";
+    desc.textContent = description;
+
+    const promptText = document.createElement("p");
+    promptText.className = "small";
+    promptText.textContent = "Prompt usado: " + prompt;
+
+    const link = document.createElement("a");
+    link.href = imageUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Abrir imagen";
+
+    body.append(heading, desc, promptText, link);
+    article.append(img, body);
+    gallery.prepend(article);
+  }
+
+  function buildNextPrompt(originalPrompt, description, mode) {
+    if (mode === "combine") {
+      return (
+        "Crea una nueva imagen inspirada en esta descripción. " +
+        "Mantén la idea principal del prompt original.\n\n" +
+        "Prompt original: " + originalPrompt + "\n\n" +
+        "Descripción de la imagen anterior: " + description
+      );
+    }
+
+    return (
+      "Crea una nueva imagen basada en esta descripción visual. " +
+      "Conserva sus elementos principales:\n" + description
+    );
+  }
+
+  startBtn.addEventListener("click", async () => {
+    if (running) return;
+
+    const initialPrompt = $("prompt").value.trim();
+
+    if (!initialPrompt) {
+      setStatus("Escribe un prompt inicial.", "error");
+      return;
+    }
+
+    const maxIterations = Number($("iterations").value);
+    const ratio = $("ratio").value;
+    const mode = $("mode").value;
+
+    stopRequested = false;
+    running = true;
+
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    $("prompt").disabled = true;
+    $("iterations").disabled = true;
+    $("ratio").disabled = true;
+    $("mode").disabled = true;
+
+    let currentPrompt = initialPrompt;
+    let stage = "preparación";
+
+    try {
+      for (let i = 1; i <= maxIterations; i++) {
+        if (stopRequested) break;
+
+        stage = "PixelSter: generación de imagen";
+
+        setStatus(
+          `Iteración ${i}/${maxIterations}: generando imagen…`
+        );
+
+        const imageUrl =
+          await generateImage(currentPrompt, ratio);
+
+        if (stopRequested) break;
+
+        stage = "VisionSter: descripción de imagen";
+
+        setStatus(
+          `Iteración ${i}/${maxIterations}: describiendo imagen…`
+        );
+
+        const description =
+          await describeImage(imageUrl);
+
+        addResult(
+          i,
+          currentPrompt,
+          imageUrl,
+          description
+        );
+
+        if (i < maxIterations && !stopRequested) {
+          currentPrompt = buildNextPrompt(
+            initialPrompt,
+            description,
+            mode
+          );
+
+          setStatus(
+            `Iteración ${i} completada. Preparando la siguiente…`,
+            "ok"
+          );
+        } else {
+          setStatus(
+            stopRequested
+              ? "Bucle detenido."
+              : `Terminado: ${i} iteración(es) completadas.`,
+            "ok"
+          );
+        }
+      }
+
+      if (stopRequested) {
+        setStatus(
+          "Bucle detenido. Los resultados existentes se conservan.",
+          "ok"
+        );
+      }
+
+    } catch (error) {
+      const detail = error?.message || String(error);
+
+      let hint = "";
+
+      if (detail === "Failed to fetch") {
+        hint =
+          "\n\nChrome no ha podido acceder a la API. " +
+          "Puede deberse a CORS, un problema de red o " +
+          "un servicio no disponible. Prueba a publicar " +
+          "este HTML en una web estática HTTPS.";
+      }
+
+      setStatus(
+        `Falló la etapa: ${stage}\n${detail}${hint}`,
+        "error"
+      );
+
+    } finally {
+      running = false;
+
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      $("prompt").disabled = false;
+      $("iterations").disabled = false;
+      $("ratio").disabled = false;
+      $("mode").disabled = false;
+    }
+  });
+
+  stopBtn.addEventListener("click", () => {
+    stopRequested = true;
+    stopBtn.disabled = true;
+
+    setStatus(
+      "Parada solicitada. Esperando a que termine la llamada actual…"
+    );
+  });
+
+  clearBtn.addEventListener("click", () => {
+    if (running) return;
+
+    gallery.replaceChildren();
+    resultsCount = 0;
+    count.textContent = "(0)";
+
+    setStatus("Resultados limpiados.");
+  });
+})();
+</script>
+</body>
+  </html>
+  
