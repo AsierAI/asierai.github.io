@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Image Loop — Generar y describir</title>
+<title>Image Loop — Siguiente paso</title>
 <style>
 :root {
   color-scheme: dark;
@@ -55,7 +55,7 @@ textarea, select {
 textarea { min-height: 100px; }
 .row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 .actions {
@@ -73,14 +73,6 @@ button {
   cursor: pointer;
   background: var(--accent);
   color: #0a1020;
-}
-button.secondary {
-  background: #25324d;
-  color: var(--text);
-}
-button.danger {
-  background: #552a3a;
-  color: white;
 }
 button:disabled {
   opacity: .45;
@@ -133,17 +125,15 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 a { color: #c3ceff; }
-@media (max-width: 650px) {
-  .row { grid-template-columns: 1fr; }
-}
 </style>
 </head>
 <body>
 <main>
   <h1>Image Loop</h1>
   <p class="muted">
-    Genera una imagen, descríbela y utiliza esa descripción
-    para generar la siguiente.
+    Genera una imagen, analiza sus elementos visuales y utiliza
+    esa información para generar la siguiente. Cada clic realiza
+    un solo paso; no hay un bucle automático.
   </p>
 
   <section class="panel">
@@ -154,17 +144,6 @@ a { color: #c3ceff; }
 
     <div class="row">
       <div>
-        <label for="iterations">Iteraciones</label>
-        <select id="iterations">
-          <option value="1">1</option>
-          <option value="2" selected>2</option>
-          <option value="3">3</option>
-          <option value="5">5</option>
-          <option value="10">10</option>
-        </select>
-      </div>
-
-      <div>
         <label for="ratio">Formato</label>
         <select id="ratio">
           <option value="1:1">Cuadrado</option>
@@ -174,29 +153,20 @@ a { color: #c3ceff; }
           <option value="3:4">3:4</option>
         </select>
       </div>
-
-      <div>
-        <label for="mode">Evolución del prompt</label>
-        <select id="mode">
-          <option value="description">Usar descripción</option>
-          <option value="combine">Combinar con prompt original</option>
-        </select>
-      </div>
     </div>
 
     <div class="actions">
-      <button id="start">▶ Iniciar bucle</button>
-      <button id="stop" class="danger" disabled>■ Detener</button>
-      <button id="clear" class="secondary">Limpiar resultados</button>
+      <button id="next">▶ Siguiente paso</button>
     </div>
 
     <div id="status" class="status" role="status" aria-live="polite">
-      Listo. Empieza con una iteración para probar las APIs.
+      Listo. Pulsa «Siguiente paso» para generar la primera imagen.
     </div>
 
     <p class="note">
-      APIs externas: PixelSter y VisionChat.
-      Su disponibilidad, límites y política de uso pueden cambiar.
+      APIs externas: PixelSter para generar imágenes y AI Auto Tagging
+      para detectar elementos visuales. La disponibilidad y los límites
+      de estos servicios pueden cambiar.
     </p>
   </section>
 
@@ -208,24 +178,27 @@ a { color: #c3ceff; }
 
 <script>
 (() => {
-  const GENERATE_URL =
-    "https://ahm7xmakki.com/api/tti";
-
-  const DESCRIBE_URL =
-    "https://www.ahm7xmakki.com/api/imgchat";
+  const GENERATE_URL = "https://ahm7xmakki.com/api/tti";
+  const DESCRIBE_URL = "https://aiautotagging.com/api/tag/image";
 
   const $ = id => document.getElementById(id);
 
-  const startBtn = $("start");
-  const stopBtn = $("stop");
-  const clearBtn = $("clear");
+  const nextBtn = $("next");
   const statusBox = $("status");
   const gallery = $("gallery");
   const count = $("count");
 
-  let stopRequested = false;
-  let running = false;
   let resultsCount = 0;
+
+  // Estados:
+  // generate-first: crear la primera imagen.
+  // describe: analizar la imagen actual.
+  // generate-next: crear otra imagen con el análisis.
+  let nextAction = "generate-first";
+
+  let currentImageUrl = "";
+  let currentCard = null;
+  let currentDescription = "";
 
   function setStatus(message, kind = "") {
     statusBox.textContent = message;
@@ -245,9 +218,8 @@ a { color: #c3ceff; }
       });
     } catch (error) {
       throw new Error(
-        "Falló la conexión del navegador. Puede ser CORS " +
-        "o un problema de red. Detalle: " +
-        (error?.message || String(error))
+        "Falló la conexión. Puede ser un problema de red o CORS. " +
+        "Detalle: " + (error?.message || String(error))
       );
     }
 
@@ -274,7 +246,7 @@ a { color: #c3ceff; }
     return data;
   }
 
-  // PASO 1: generar la imagen.
+  // PASO 1: generar una imagen con PixelSter.
   async function generateImage(prompt, ratio) {
     const data = await postJson(GENERATE_URL, {
       prompt,
@@ -283,7 +255,7 @@ a { color: #c3ceff; }
 
     if (data?.success === false) {
       throw new Error(
-        data.error || "Falló la generación."
+        data.error || "Falló la generación de la imagen."
       );
     }
 
@@ -297,7 +269,7 @@ a { color: #c3ceff; }
       !/^https?:\/\//i.test(url)
     ) {
       throw new Error(
-        "La respuesta no contiene una URL reconocible: " +
+        "La respuesta no contiene una URL de imagen reconocible: " +
         JSON.stringify(data).slice(0, 300)
       );
     }
@@ -305,116 +277,8 @@ a { color: #c3ceff; }
     return url;
   }
 
-  function getDescriptionPrompt() {
-    return (
-      "Describe con precisión la imagen en español. " +
-      "Indica los sujetos, el entorno, los colores, " +
-      "la composición y el estilo visual. " +
-      "No inventes detalles que no se vean."
-    );
-  }
-
-  function extractDescription(data) {
-    if (data?.success === false) {
-      throw new Error(
-        data.error ||
-        data.message ||
-        "La API indicó que la descripción falló."
-      );
-    }
-
-    const description =
-      data?.response ||
-      data?.description ||
-      data?.text;
-
-    if (
-      typeof description !== "string" ||
-      !description.trim()
-    ) {
-      throw new Error(
-        "No se encontró texto en la respuesta: " +
-        JSON.stringify(data).slice(0, 300)
-      );
-    }
-
-    return description.trim();
-  }
-
-  // PASO 2A: intentar describir usando la URL.
-  async function describeByUrl(imageUrl) {
-    const data = await postJson(DESCRIBE_URL, {
-      url: imageUrl,
-      userPrompt: getDescriptionPrompt()
-    });
-
-    return extractDescription(data);
-  }
-
-  // PASO 2B: descargar la imagen y convertirla a Base64.
-  // La descarga requiere que el servidor de imágenes
-  // permita el acceso desde el navegador mediante CORS.
-  async function imageUrlToDataUrl(imageUrl) {
-    let response;
-
-    try {
-      response = await fetch(imageUrl);
-    } catch (error) {
-      throw new Error(
-        "No se pudo descargar la imagen para convertirla " +
-        "a Base64. Puede ser CORS en el servidor de imágenes. " +
-        "Detalle: " + (error?.message || String(error))
-      );
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        `La descarga de la imagen devolvió HTTP ${response.status}.`
-      );
-    }
-
-    const blob = await response.blob();
-
-    if (!blob.type.startsWith("image/")) {
-      throw new Error(
-        "La URL no devolvió una imagen. Tipo recibido: " +
-        (blob.type || "desconocido")
-      );
-    }
-
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = () => resolve(reader.result);
-
-      reader.onerror = () => reject(
-        new Error("No se pudo convertir la imagen a Base64.")
-      );
-
-      reader.readAsDataURL(blob);
-    });
-  }
-
-  // PASO 2C: enviar la imagen como Base64.
-  async function describeByBase64(imageUrl) {
-    const imageDataUrl =
-      await imageUrlToDataUrl(imageUrl);
-
-    const data = await postJson(DESCRIBE_URL, {
-      image: imageDataUrl,
-      userPrompt: getDescriptionPrompt()
-    });
-
-    return extractDescription(data);
-  }
-
-  // Mostrar la imagen en pantalla antes de describirla.
-  function addResult(
-    iteration,
-    prompt,
-    imageUrl,
-    description = "Imagen generada. Descripción pendiente."
-  ) {
+  // Añadir una imagen a la galería.
+  function addResult(prompt, imageUrl) {
     resultsCount++;
     count.textContent = `(${resultsCount})`;
 
@@ -423,18 +287,19 @@ a { color: #c3ceff; }
 
     const img = document.createElement("img");
     img.src = imageUrl;
-    img.alt = `Imagen de la iteración ${iteration}`;
+    img.alt = `Imagen ${resultsCount}`;
     img.loading = "lazy";
 
     const body = document.createElement("div");
     body.className = "item-body";
 
     const heading = document.createElement("h3");
-    heading.textContent = `Iteración ${iteration}`;
+    heading.textContent = `Imagen ${resultsCount}`;
 
     const desc = document.createElement("p");
     desc.className = "description";
-    desc.textContent = description;
+    desc.textContent =
+      "Imagen generada. El análisis está pendiente.";
 
     const promptText = document.createElement("p");
     promptText.className = "small";
@@ -453,211 +318,174 @@ a { color: #c3ceff; }
     return { article, desc };
   }
 
-  function buildNextPrompt(
-    originalPrompt,
-    description,
-    mode
-  ) {
-    if (mode === "combine") {
-      return (
-        "Crea una nueva imagen inspirada en esta descripción. " +
-        "Mantén la idea principal del prompt original.\n\n" +
-        "Prompt original: " + originalPrompt + "\n\n" +
-        "Descripción de la imagen anterior: " + description
+  // Limpiar las etiquetas que devuelve AI Auto Tagging.
+  function extractTags(data) {
+    if (data?.success === false) {
+      throw new Error(
+        data.error ||
+        data.message ||
+        "El servicio de análisis indicó un error."
       );
     }
 
+    if (!Array.isArray(data?.tags)) {
+      throw new Error(
+        "La respuesta no contiene una lista de etiquetas: " +
+        JSON.stringify(data).slice(0, 300)
+      );
+    }
+
+    const labels = data.tags
+      .map(item =>
+        typeof item === "string" ? item : item?.label
+      )
+      .filter(Boolean)
+      .map(label =>
+        String(label)
+          .replace(/^tags label\s*/i, "")
+          .trim()
+      )
+      .filter(label =>
+        label &&
+        !/^confidence\b/i.test(label) &&
+        !/^reason\b/i.test(label)
+      );
+
+    const uniqueLabels = [...new Set(labels)];
+
+    if (!uniqueLabels.length) {
+      throw new Error(
+        "El servicio no devolvió etiquetas visuales útiles."
+      );
+    }
+
+    return uniqueLabels.join(", ");
+  }
+
+  // PASO 2: analizar la imagen mediante AI Auto Tagging.
+  async function describeImage(imageUrl) {
+    const data = await postJson(DESCRIBE_URL, {
+      imageUrl,
+      options: {
+        maxTags: 10
+      }
+    });
+
+    return extractTags(data);
+  }
+
+  // Crear el prompt para la siguiente imagen.
+  function buildNextPrompt(description) {
     return (
-      "Crea una nueva imagen basada en esta descripción visual. " +
-      "Conserva sus elementos principales:\n" + description
+      "Genera una nueva imagen inspirada en estos elementos visuales: " +
+      description +
+      ". Crea una composición coherente y visualmente atractiva; " +
+      "puedes reinterpretar la escena."
     );
   }
 
-  startBtn.addEventListener("click", async () => {
-    if (running) return;
+  function updateButton() {
+    if (nextAction === "describe") {
+      nextBtn.textContent =
+        "▶ Siguiente paso: analizar imagen";
+    } else if (nextAction === "generate-next") {
+      nextBtn.textContent =
+        "▶ Siguiente paso: generar otra imagen";
+    } else {
+      nextBtn.textContent = "▶ Siguiente paso";
+    }
+  }
+
+  // Cada clic realiza únicamente el siguiente paso.
+  nextBtn.addEventListener("click", async () => {
+    if (nextBtn.disabled) return;
 
     const initialPrompt = $("prompt").value.trim();
 
-    if (!initialPrompt) {
-      setStatus("Escribe un prompt inicial.", "error");
+    if (
+      nextAction === "generate-first" &&
+      !initialPrompt
+    ) {
+      setStatus(
+        "Escribe un prompt inicial antes de continuar.",
+        "error"
+      );
       return;
     }
 
-    const maxIterations =
-      Number($("iterations").value);
-
-    const ratio = $("ratio").value;
-    const mode = $("mode").value;
-
-    stopRequested = false;
-    running = true;
-
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
+    nextBtn.disabled = true;
     $("prompt").disabled = true;
-    $("iterations").disabled = true;
     $("ratio").disabled = true;
-    $("mode").disabled = true;
-
-    let currentPrompt = initialPrompt;
-    let stage = "preparación";
 
     try {
-      for (let i = 1; i <= maxIterations; i++) {
-        if (stopRequested) break;
+      if (
+        nextAction === "generate-first" ||
+        nextAction === "generate-next"
+      ) {
+        const prompt =
+          nextAction === "generate-first"
+            ? initialPrompt
+            : buildNextPrompt(currentDescription);
 
-        // 1. Generar la imagen.
-        stage = "PixelSter: generación de imagen";
-
-        setStatus(
-          `Iteración ${i}/${maxIterations}: generando imagen…`
-        );
+        setStatus("Generando imagen con PixelSter…");
 
         const imageUrl = await generateImage(
-          currentPrompt,
-          ratio
+          prompt,
+          $("ratio").value
         );
 
-        if (stopRequested) break;
+        currentImageUrl = imageUrl;
+        currentCard = addResult(prompt, imageUrl);
+        currentDescription = "";
 
-        // 2. Mostrarla inmediatamente.
-        const card = addResult(
-          i,
-          currentPrompt,
-          imageUrl
-        );
-
-        // 3. Primero probar con URL.
-        let description;
-        let urlError = "";
+        nextAction = "describe";
 
         setStatus(
-          `Iteración ${i}/${maxIterations}: imagen mostrada. ` +
-          "Intentando descripción mediante URL…"
+          "Imagen generada. Pulsa de nuevo para analizar sus elementos visuales.",
+          "ok"
         );
 
-        try {
-          stage = "VisionChat: descripción mediante URL";
-
-          description = await describeByUrl(imageUrl);
-
-          setStatus(
-            `Iteración ${i}: descripción obtenida mediante URL.`,
-            "ok"
-          );
-
-        } catch (error) {
-          urlError = error?.message || String(error);
-
-          card.desc.textContent =
-            "Falló la descripción mediante URL:\n" +
-            urlError +
-            "\n\nProbando ahora mediante Base64…";
-
-          setStatus(
-            `Iteración ${i}: falló el método URL.\n` +
-            urlError +
-            "\n\nProbando Base64…"
-          );
-
-          // 4. Si falla URL, probar Base64.
-          try {
-            stage = "VisionChat: descripción mediante Base64";
-
-            description =
-              await describeByBase64(imageUrl);
-
-            setStatus(
-              `Iteración ${i}: descripción obtenida mediante Base64.`,
-              "ok"
-            );
-
-          } catch (base64Error) {
-            const base64Detail =
-              base64Error?.message || String(base64Error);
-
-            card.desc.textContent =
-              "La imagen se generó y se muestra, pero fallaron " +
-              "ambos métodos de descripción.\n\n" +
-              "Error usando URL:\n" + urlError +
-              "\n\nError usando Base64:\n" + base64Detail;
-
-            throw new Error(
-              "Fallaron ambos métodos de descripción.\n\n" +
-              "URL: " + urlError +
-              "\n\nBase64: " + base64Detail
-            );
-          }
-        }
-
-        // 5. Mostrar la descripción.
-        card.desc.textContent = description;
-
-        // 6. Preparar la siguiente iteración.
-        if (i < maxIterations && !stopRequested) {
-          currentPrompt = buildNextPrompt(
-            initialPrompt,
-            description,
-            mode
-          );
-
-          setStatus(
-            `Iteración ${i} completada. Preparando la siguiente…`,
-            "ok"
-          );
-        } else {
-          setStatus(
-            stopRequested
-              ? "Bucle detenido."
-              : `Terminado: ${i} iteración(es) completadas.`,
-            "ok"
+      } else if (nextAction === "describe") {
+        if (!currentImageUrl || !currentCard) {
+          throw new Error(
+            "No hay una imagen disponible para analizar."
           );
         }
-      }
 
-      if (stopRequested) {
         setStatus(
-          "Bucle detenido. Los resultados existentes se conservan.",
+          "Analizando la imagen con AI Auto Tagging…"
+        );
+
+        const description =
+          await describeImage(currentImageUrl);
+
+        currentDescription = description;
+
+        currentCard.desc.textContent =
+          "Elementos detectados: " + description;
+
+        nextAction = "generate-next";
+
+        setStatus(
+          "Análisis completado. Pulsa de nuevo para generar otra imagen basada en los elementos detectados.",
           "ok"
         );
       }
 
+      updateButton();
+
     } catch (error) {
       setStatus(
-        `Falló la etapa: ${stage}\n` +
-        (error?.message || String(error)),
+        error?.message || String(error),
         "error"
       );
+      // Se conserva el paso actual para poder reintentarlo.
 
     } finally {
-      running = false;
-
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
+      nextBtn.disabled = false;
       $("prompt").disabled = false;
-      $("iterations").disabled = false;
       $("ratio").disabled = false;
-      $("mode").disabled = false;
     }
-  });
-
-  stopBtn.addEventListener("click", () => {
-    stopRequested = true;
-    stopBtn.disabled = true;
-
-    setStatus(
-      "Parada solicitada. Esperando a que termine la llamada actual…"
-    );
-  });
-
-  clearBtn.addEventListener("click", () => {
-    if (running) return;
-
-    gallery.replaceChildren();
-    resultsCount = 0;
-    count.textContent = "(0)";
-
-    setStatus("Resultados limpiados.");
   });
 })();
 </script>
