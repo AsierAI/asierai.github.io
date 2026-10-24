@@ -5,7 +5,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Image Loop — Generar y describir</title>
-
 <style>
 :root {
   color-scheme: dark;
@@ -18,25 +17,20 @@
   --good: #78e0b5;
   --bad: #ff9caa;
 }
-
 * { box-sizing: border-box; }
-
 body {
   margin: 0;
   font: 16px/1.5 system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
 }
-
 main {
   max-width: 1000px;
   margin: auto;
   padding: 24px 14px 50px;
 }
-
 h1 { font-size: 2rem; line-height: 1.15; }
 h2 { font-size: 1.1rem; margin-top: 0; }
-
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -44,13 +38,11 @@ h2 { font-size: 1.1rem; margin-top: 0; }
   padding: 16px;
   margin-top: 18px;
 }
-
 label {
   display: block;
   font-weight: 650;
   margin: 12px 0 6px;
 }
-
 textarea, select {
   width: 100%;
   background: #0b1222;
@@ -60,22 +52,18 @@ textarea, select {
   padding: 11px;
   font: inherit;
 }
-
 textarea { min-height: 100px; }
-
 .row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
-
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 14px;
 }
-
 button {
   border: 0;
   border-radius: 10px;
@@ -86,22 +74,18 @@ button {
   background: var(--accent);
   color: #0a1020;
 }
-
 button.secondary {
   background: #25324d;
   color: var(--text);
 }
-
 button.danger {
   background: #552a3a;
   color: white;
 }
-
 button:disabled {
   opacity: .45;
   cursor: not-allowed;
 }
-
 .status {
   padding: 12px;
   background: #0b1222;
@@ -112,22 +96,18 @@ button:disabled {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-
 .status.error { color: var(--bad); }
 .status.ok { color: var(--good); }
-
 .note, .muted {
   color: var(--muted);
   font-size: .9rem;
 }
-
 .gallery {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
   margin-top: 14px;
 }
-
 .item {
   border: 1px solid var(--line);
   background: #0d1527;
@@ -135,7 +115,6 @@ button:disabled {
   overflow: hidden;
   min-width: 0;
 }
-
 .item img {
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -143,28 +122,22 @@ button:disabled {
   background: #070b14;
   display: block;
 }
-
 .item-body { padding: 12px; }
-
 .description {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-
 .small {
   color: var(--muted);
   font-size: .85rem;
   overflow-wrap: anywhere;
 }
-
 a { color: #c3ceff; }
-
 @media (max-width: 650px) {
   .row { grid-template-columns: 1fr; }
 }
 </style>
 </head>
-
 <body>
 <main>
   <h1>Image Loop</h1>
@@ -222,7 +195,7 @@ a { color: #c3ceff; }
     </div>
 
     <p class="note">
-      APIs externas: PixelSter y VisionSter.
+      APIs externas: PixelSter y VisionChat.
       Su disponibilidad, límites y política de uso pueden cambiar.
     </p>
   </section>
@@ -260,21 +233,33 @@ a { color: #c3ceff; }
   }
 
   async function postJson(url, body) {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
+    let response;
 
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+    } catch (error) {
+      throw new Error(
+        "Falló la conexión del navegador. Puede ser CORS " +
+        "o un problema de red. Detalle: " +
+        (error?.message || String(error))
+      );
+    }
+
+    const text = await response.text();
     let data;
 
     try {
-      data = await response.json();
+      data = JSON.parse(text);
     } catch {
       throw new Error(
-        `HTTP ${response.status}: la API no devolvió JSON válido.`
+        `HTTP ${response.status}: respuesta no JSON: ` +
+        text.slice(0, 250)
       );
     }
 
@@ -289,7 +274,7 @@ a { color: #c3ceff; }
     return data;
   }
 
-  // 1. Generar imagen desde texto.
+  // PASO 1: generar la imagen.
   async function generateImage(prompt, ratio) {
     const data = await postJson(GENERATE_URL, {
       prompt,
@@ -297,7 +282,9 @@ a { color: #c3ceff; }
     });
 
     if (data?.success === false) {
-      throw new Error(data.error || "Falló la generación.");
+      throw new Error(
+        data.error || "Falló la generación."
+      );
     }
 
     const url =
@@ -305,10 +292,12 @@ a { color: #c3ceff; }
       data?.url ||
       data?.image;
 
-    if (typeof url !== "string" ||
-        !/^https?:\/\//i.test(url)) {
+    if (
+      typeof url !== "string" ||
+      !/^https?:\/\//i.test(url)
+    ) {
       throw new Error(
-        "La respuesta de generación no contiene una URL reconocible: " +
+        "La respuesta no contiene una URL reconocible: " +
         JSON.stringify(data).slice(0, 300)
       );
     }
@@ -316,19 +305,22 @@ a { color: #c3ceff; }
     return url;
   }
 
-  // 2. Describir la imagen.
-  async function describeImage(imageUrl) {
-    const data = await postJson(DESCRIBE_URL, {
-      url: imageUrl,
-      userPrompt:
-        "Describe con precisión la imagen en español. " +
-        "Indica los sujetos, el entorno, los colores, " +
-        "la composición y el estilo visual. " +
-        "No inventes detalles que no se vean."
-    });
+  function getDescriptionPrompt() {
+    return (
+      "Describe con precisión la imagen en español. " +
+      "Indica los sujetos, el entorno, los colores, " +
+      "la composición y el estilo visual. " +
+      "No inventes detalles que no se vean."
+    );
+  }
 
+  function extractDescription(data) {
     if (data?.success === false) {
-      throw new Error(data.error || "Falló la descripción.");
+      throw new Error(
+        data.error ||
+        data.message ||
+        "La API indicó que la descripción falló."
+      );
     }
 
     const description =
@@ -336,9 +328,12 @@ a { color: #c3ceff; }
       data?.description ||
       data?.text;
 
-    if (typeof description !== "string") {
+    if (
+      typeof description !== "string" ||
+      !description.trim()
+    ) {
       throw new Error(
-        "No se encontró el texto en la respuesta: " +
+        "No se encontró texto en la respuesta: " +
         JSON.stringify(data).slice(0, 300)
       );
     }
@@ -346,7 +341,80 @@ a { color: #c3ceff; }
     return description.trim();
   }
 
-  function addResult(iteration, prompt, imageUrl, description) {
+  // PASO 2A: intentar describir usando la URL.
+  async function describeByUrl(imageUrl) {
+    const data = await postJson(DESCRIBE_URL, {
+      url: imageUrl,
+      userPrompt: getDescriptionPrompt()
+    });
+
+    return extractDescription(data);
+  }
+
+  // PASO 2B: descargar la imagen y convertirla a Base64.
+  // La descarga requiere que el servidor de imágenes
+  // permita el acceso desde el navegador mediante CORS.
+  async function imageUrlToDataUrl(imageUrl) {
+    let response;
+
+    try {
+      response = await fetch(imageUrl);
+    } catch (error) {
+      throw new Error(
+        "No se pudo descargar la imagen para convertirla " +
+        "a Base64. Puede ser CORS en el servidor de imágenes. " +
+        "Detalle: " + (error?.message || String(error))
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `La descarga de la imagen devolvió HTTP ${response.status}.`
+      );
+    }
+
+    const blob = await response.blob();
+
+    if (!blob.type.startsWith("image/")) {
+      throw new Error(
+        "La URL no devolvió una imagen. Tipo recibido: " +
+        (blob.type || "desconocido")
+      );
+    }
+
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => resolve(reader.result);
+
+      reader.onerror = () => reject(
+        new Error("No se pudo convertir la imagen a Base64.")
+      );
+
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // PASO 2C: enviar la imagen como Base64.
+  async function describeByBase64(imageUrl) {
+    const imageDataUrl =
+      await imageUrlToDataUrl(imageUrl);
+
+    const data = await postJson(DESCRIBE_URL, {
+      image: imageDataUrl,
+      userPrompt: getDescriptionPrompt()
+    });
+
+    return extractDescription(data);
+  }
+
+  // Mostrar la imagen en pantalla antes de describirla.
+  function addResult(
+    iteration,
+    prompt,
+    imageUrl,
+    description = "Imagen generada. Descripción pendiente."
+  ) {
     resultsCount++;
     count.textContent = `(${resultsCount})`;
 
@@ -376,14 +444,20 @@ a { color: #c3ceff; }
     link.href = imageUrl;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.textContent = "Abrir imagen";
+    link.textContent = "Abrir imagen original";
 
     body.append(heading, desc, promptText, link);
     article.append(img, body);
     gallery.prepend(article);
+
+    return { article, desc };
   }
 
-  function buildNextPrompt(originalPrompt, description, mode) {
+  function buildNextPrompt(
+    originalPrompt,
+    description,
+    mode
+  ) {
     if (mode === "combine") {
       return (
         "Crea una nueva imagen inspirada en esta descripción. " +
@@ -409,7 +483,9 @@ a { color: #c3ceff; }
       return;
     }
 
-    const maxIterations = Number($("iterations").value);
+    const maxIterations =
+      Number($("iterations").value);
+
     const ratio = $("ratio").value;
     const mode = $("mode").value;
 
@@ -430,33 +506,94 @@ a { color: #c3ceff; }
       for (let i = 1; i <= maxIterations; i++) {
         if (stopRequested) break;
 
+        // 1. Generar la imagen.
         stage = "PixelSter: generación de imagen";
 
         setStatus(
           `Iteración ${i}/${maxIterations}: generando imagen…`
         );
 
-        const imageUrl =
-          await generateImage(currentPrompt, ratio);
+        const imageUrl = await generateImage(
+          currentPrompt,
+          ratio
+        );
 
         if (stopRequested) break;
 
-        stage = "VisionSter: descripción de imagen";
-
-        setStatus(
-          `Iteración ${i}/${maxIterations}: describiendo imagen…`
-        );
-
-        const description =
-          await describeImage(imageUrl);
-
-        addResult(
+        // 2. Mostrarla inmediatamente.
+        const card = addResult(
           i,
           currentPrompt,
-          imageUrl,
-          description
+          imageUrl
         );
 
+        // 3. Primero probar con URL.
+        let description;
+        let urlError = "";
+
+        setStatus(
+          `Iteración ${i}/${maxIterations}: imagen mostrada. ` +
+          "Intentando descripción mediante URL…"
+        );
+
+        try {
+          stage = "VisionChat: descripción mediante URL";
+
+          description = await describeByUrl(imageUrl);
+
+          setStatus(
+            `Iteración ${i}: descripción obtenida mediante URL.`,
+            "ok"
+          );
+
+        } catch (error) {
+          urlError = error?.message || String(error);
+
+          card.desc.textContent =
+            "Falló la descripción mediante URL:\n" +
+            urlError +
+            "\n\nProbando ahora mediante Base64…";
+
+          setStatus(
+            `Iteración ${i}: falló el método URL.\n` +
+            urlError +
+            "\n\nProbando Base64…"
+          );
+
+          // 4. Si falla URL, probar Base64.
+          try {
+            stage = "VisionChat: descripción mediante Base64";
+
+            description =
+              await describeByBase64(imageUrl);
+
+            setStatus(
+              `Iteración ${i}: descripción obtenida mediante Base64.`,
+              "ok"
+            );
+
+          } catch (base64Error) {
+            const base64Detail =
+              base64Error?.message || String(base64Error);
+
+            card.desc.textContent =
+              "La imagen se generó y se muestra, pero fallaron " +
+              "ambos métodos de descripción.\n\n" +
+              "Error usando URL:\n" + urlError +
+              "\n\nError usando Base64:\n" + base64Detail;
+
+            throw new Error(
+              "Fallaron ambos métodos de descripción.\n\n" +
+              "URL: " + urlError +
+              "\n\nBase64: " + base64Detail
+            );
+          }
+        }
+
+        // 5. Mostrar la descripción.
+        card.desc.textContent = description;
+
+        // 6. Preparar la siguiente iteración.
         if (i < maxIterations && !stopRequested) {
           currentPrompt = buildNextPrompt(
             initialPrompt,
@@ -486,20 +623,9 @@ a { color: #c3ceff; }
       }
 
     } catch (error) {
-      const detail = error?.message || String(error);
-
-      let hint = "";
-
-      if (detail === "Failed to fetch") {
-        hint =
-          "\n\nChrome no ha podido acceder a la API. " +
-          "Puede deberse a CORS, un problema de red o " +
-          "un servicio no disponible. Prueba a publicar " +
-          "este HTML en una web estática HTTPS.";
-      }
-
       setStatus(
-        `Falló la etapa: ${stage}\n${detail}${hint}`,
+        `Falló la etapa: ${stage}\n` +
+        (error?.message || String(error)),
         "error"
       );
 
@@ -536,5 +662,4 @@ a { color: #c3ceff; }
 })();
 </script>
 </body>
-  </html>
-  
+</html>
