@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendario Circular Espiral (23 Sep 2026 - 21 Sep 2027)</title>
+  <!-- Fuente Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+  
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: #060913;
+      color: #c9d1d9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .calendar-container {
+      position: relative;
+      width: 98vw;
+      height: 98vw;
+      max-width: 95vh;
+      max-height: 95vh;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Sombras alternadas de fondo para meses */
+    .month-shade {
+      fill: rgba(255, 255, 255, 0.035);
+    }
+
+    /* Franja de Constelaciones */
+    .constellation-arc {
+      fill: none;
+      stroke: #0c1427;
+      stroke-width: 100;
+    }
+
+    .constellation-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 8px;
+      font-weight: 700;
+      fill: #475569;
+      text-anchor: middle;
+      dominant-baseline: central;
+      letter-spacing: 1.5px;
+    }
+
+    /* Anillo de Meses */
+    .month-arc {
+      fill: none;
+      stroke: #172339;
+      stroke-width: 42;
+    }
+
+    .month-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+      fill: #f1f5f9;
+      text-anchor: middle;
+      dominant-baseline: central;
+      letter-spacing: 3px;
+    }
+
+    /* Rejilla Concéntrica de Días */
+    .grid-circle {
+      fill: none;
+      stroke: rgba(241, 245, 249, 0.06);
+      stroke-width: 1;
+    }
+
+    .day-tick {
+      stroke: rgba(241, 245, 249, 0.06);
+      stroke-width: 0.8;
+    }
+
+    /* ESTILO DE DÍAS */
+    .day-text {
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      fill: #64748b;
+      text-anchor: middle;
+      dominant-baseline: central;
+    }
+
+    .day-text.weekend {
+      fill: #cbd5e1;
+      font-weight: 700;
+    }
+
+    .day-text.solstice {
+      fill: #fb7185 !important;
+      font-weight: 900 !important;
+      font-size: 12px !important;
+      filter: drop-shadow(0 0 3px rgba(251, 113, 133, 0.6));
+    }
+
+    /* Lunas Vectores */
+    .moon-full {
+      fill: #ffffff;
+      filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8));
+    }
+
+    .moon-new {
+      fill: #060913;
+      stroke: #64748b;
+      stroke-width: 1.5;
+    }
+
+    /* LÍNEAS ROJAS DE SOLSTICIOS Y CAMBIOS DE HORA */
+    .quadrant-line {
+      stroke: #f43f5e;
+      stroke-width: 1.2;
+      stroke-dasharray: 4, 3;
+      opacity: 0.85;
+    }
+
+    .time-change-line {
+      stroke: #e11d48;
+      stroke-width: 1.2;
+      stroke-dasharray: 3, 3;
+      opacity: 0.45;
+    }
+
+    /* Estrellas */
+    .star-line {
+      stroke: rgba(248, 250, 252, 0.45);
+      stroke-width: 1;
+    }
+
+    .star-dot {
+      fill: #ffffff;
+      filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
+    }
+
+    /* Botón de descarga flotante */
+    .download-btn {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: linear-gradient(135deg, #f43f5e, #e11d48);
+      color: #ffffff;
+      border: none;
+      padding: 16px 28px;
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 10px 25px rgba(244, 63, 94, 0.4);
+      transition: all 0.25s ease;
+      z-index: 1000;
+      letter-spacing: 0.5px;
+    }
+
+    .download-btn:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 14px 30px rgba(244, 63, 94, 0.6);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="calendar-container">
+    <svg id="circular-calendar" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Filtro Glow para el Sol y Solsticios -->
+        <filter id="glow-sun" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+        
+        <!-- Fondo Espacial Profundo -->
+        <radialGradient id="bg-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#111827" />
+          <stop offset="100%" stop-color="#060913" />
+        </radialGradient>
+      </defs>
+
+      <!-- Fondo Gradiente -->
+      <rect width="800" height="800" fill="url(#bg-glow)" />
+
+      <!-- SOL Y TIERRA EN EL CENTRO -->
+      <g id="center-illustration">
+        <!-- Resplandor del Sol -->
+        <circle cx="400" cy="400" r="18" fill="#fbebe8" opacity="0.15" />
+        <circle cx="400" cy="400" r="12" fill="#fbbf24" opacity="0.3" filter="url(#glow-sun)" />
+        <circle cx="400" cy="400" r="7" fill="#fef08a" filter="url(#glow-sun)" />
+
+        <!-- Órbita Visual de la Tierra (Centro) -->
+        <circle cx="400" cy="400" r="28" fill="none" stroke="rgba(255,255,255,0.08)" stroke-dasharray="2,2" />
+        
+        <!-- Tierra -->
+        <circle cx="428" cy="400" r="3" fill="#38bdf8" />
+      </g>
+    </svg>
+  </div>
+
+  <button id="btn-download" class="download-btn">Descargar Póster HD (PNG)</button>
+
+  <script>
+    const svg = document.getElementById('circular-calendar');
+
+    const totalDays = 364;
+    const cx = 400, cy = 400;
+
+    const rConstArc    = 52;   
+    const rStarMap     = 74;   
+    const rConstLabel  = 98;   
+    const rMonth       = 134; 
+    const rDayInner    = 178;  
+    const rDayOuter    = 338;  
+    const rDayStep     = 26.6; 
+    const rMoonRing    = 374; // Lunas flotantes en el exterior
+
+    const solsticeDates = ['2026-9-23', '2026-12-21', '2027-3-20', '2027-6-21'];
+    const timeChangeDates = ['2026-10-25', '2027-3-28'];
+
+    const angleOffset = 90 - ((89 + 0.5) / totalDays) * 360;
+
+    const starPatterns = {
+      'LIB': { nodes: [{x:-10,y:-10},{x:10,y:-10},{x:12,y:4},{x:-4,y:10}], edges: [[0,1],[1,2],[2,3],[3,0]] },
+      'SCO': { nodes: [{x:-14,y:-12},{x:-10,y:-6},{x:0,y:0},{x:6,y:6},{x:12,y:4},{x:14,y:-4}], edges: [[0,1],[1,2],[2,3],[3,4],[4,5]] },
+      'SAG': { nodes: [{x:-12,y:10},{x:-4,y:4},{x:6,y:-6},{x:14,y:-12},{x:0,y:-12},{x:-10,y:-6}], edges: [[0,1],[1,2],[2,3],[1,4],[4,5],[5,0]] },
+      'CAP': { nodes: [{x:-14,y:-10},{x:12,y:-12},{x:14,y:6},{x:4,y:12},{x:-12,y:4}], edges: [[0,1],[1,2],[2,3],[3,4],[4,0]] },
+      'AQU': { nodes: [{x:-12,y:-10},{x:-4,y:-4},{x:6,y:-10},{x:12,y:4},{x:4,y:12}], edges: [[0,1],[1,2],[1,3],[3,4]] },
+      'PIS': { nodes: [{x:-14,y:10},{x:-6,y:4},{x:4,y:-6},{x:12,y:-12},{x:10,y:6}], edges: [[0,1],[1,2],[2,3],[2,4]] },
+      'ARI': { nodes: [{x:-12,y:6},{x:0,y:-4},{x:12,y:-6}], edges: [[0,1],[1,2]] },
+      'TAU': { nodes: [{x:-14,y:-10},{x:-4,y:-4},{x:6,y:4},{x:-6,y:10},{x:14,y:-12}], edges: [[0,1],[1,2],[1,3],[2,4]] },
+      'GEM': { nodes: [{x:-12,y:-12},{x:-6,y:6},{x:6,y:-12},{x:12,y:6}], edges: [[0,1],[2,3],[0,2]] },
+      'CAN': { nodes: [{x:-10,y:-10},{x:0,y:0},{x:10,y:-6},{x:4,y:10}], edges: [[0,1],[1,2],[1,3]] },
+      'LEO': { nodes: [{x:-14,y:6},{x:-6,y:-4},{x:0,y:-12},{x:6,y:-6},{x:4,y:6},{x:14,y:10}], edges: [[0,1],[1,2],[2,3],[3,4],[4,1],[4,5]] },
+      'VIR': { nodes: [{x:-14,y:-10},{x:-6,y:-4},{x:0,y:4},{x:10,y:10},{x:4,y:-10},{x:12,y:-4}], edges: [[0,1],[1,2],[2,3],[2,4],[4,5]] }
+    };
+
+    const constellations = [
+      { name: 'LIB', startAbs: 1,   endAbs: 30  },
+      { name: 'SCO', startAbs: 31,  endAbs: 60  },
+      { name: 'SAG', startAbs: 61,  endAbs: 89  },
+      { name: 'CAP', startAbs: 90,  endAbs: 119 },
+      { name: 'AQU', startAbs: 120, endAbs: 149 },
+      { name: 'PIS', startAbs: 150, endAbs: 179 },
+      { name: 'ARI', startAbs: 180, endAbs: 209 },
+      { name: 'TAU', startAbs: 210, endAbs: 239 },
+      { name: 'GEM', startAbs: 240, endAbs: 270 },
+      { name: 'CAN', startAbs: 271, endAbs: 302 },
+      { name: 'LEO', startAbs: 303, endAbs: 333 },
+      { name: 'VIR', startAbs: 334, endAbs: 364 }
+    ];
+
+    const monthSegments = [
+      { name: 'SEP', days: 8,  startDay: 23, monthNum: 9,  year: 2026 },
+      { name: 'OCT', days: 31, startDay: 1,  monthNum: 10, year: 2026 },
+      { name: 'NOV', days: 30, startDay: 1,  monthNum: 11, year: 2026 },
+      { name: 'DIC', days: 31, startDay: 1,  monthNum: 12, year: 2026 },
+      { name: 'ENE', days: 31, startDay: 1,  monthNum: 1,  year: 2027 },
+      { name: 'FEB', days: 28, startDay: 1,  monthNum: 2,  year: 2027 },
+      { name: 'MAR', days: 31, startDay: 1,  monthNum: 3,  year: 2027 },
+      { name: 'ABR', days: 30, startDay: 1,  monthNum: 4,  year: 2027 },
+      { name: 'MAY', days: 31, startDay: 1,  monthNum: 5,  year: 2027 },
+      { name: 'JUN', days: 30, startDay: 1,  monthNum: 6,  year: 2027 },
+      { name: 'JUL', days: 31, startDay: 1,  monthNum: 7,  year: 2027 },
+      { name: 'AGO', days: 31, startDay: 1,  monthNum: 8,  year: 2027 },
+      { name: 'SEP', days: 21, startDay: 1,  monthNum: 9,  year: 2027 }
+    ];
+
+    const moonPhases = {
+      '2026-9-26':  'FULL',
+      '2026-10-10': 'NEW',  '2026-10-26': 'FULL',
+      '2026-11-9':  'NEW',  '2026-11-24': 'FULL',
+      '2026-12-9':  'NEW',  '2026-12-24': 'FULL',
+      '2027-1-7':   'NEW',  '2027-1-22':  'FULL',
+      '2027-2-6':   'NEW',  '2027-2-20':  'FULL',
+      '2027-3-8':   'NEW',  '2027-3-22':  'FULL',
+      '2027-4-6':   'NEW',  '2027-4-20':  'FULL',
+      '2027-5-6':   'NEW',  '2027-5-20':  'FULL',
+      '2027-6-4':   'NEW',  '2027-6-19':  'FULL',
+      '2027-7-4':   'NEW',  '2027-7-18':  'FULL',
+      '2027-8-2':   'NEW',  '2027-8-17':  'FULL', '2027-8-31': 'NEW',
+      '2027-9-15':  'FULL'
+    };
+
+    const quadrantDays = [1, 90, 179, 272];
+
+    function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+      const adjustedAngle = angleInDegrees + 180;
+      const angleInRadians = (adjustedAngle * Math.PI) / 180.0;
+      return {
+        x: centerX + (radius * Math.cos(angleInRadians)),
+        y: centerY + (radius * Math.sin(angleInRadians))
+      };
+    }
+
+    function describeArc(x, y, radius, startAngle, endAngle) {
+      const start = polarToCartesian(x, y, radius, endAngle);
+      const end = polarToCartesian(x, y, radius, startAngle);
+      const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+      return ["M", start.x, start.y, "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y].join(" ");
+    }
+
+    function describeSector(x, y, rInner, rOuter, startAngle, endAngle) {
+      const p1_o = polarToCartesian(x, y, rOuter, startAngle);
+      const p2_o = polarToCartesian(x, y, rOuter, endAngle);
+      const p1_i = polarToCartesian(x, y, rInner, endAngle);
+      const p2_i = polarToCartesian(x, y, rInner, startAngle);
+      const largeArc = (endAngle - startAngle) <= 180 ? "0" : "1";
+
+      return [
+        "M", p1_o.x, p1_o.y,
+        "A", rOuter, rOuter, 0, largeArc, 1, p2_o.x, p2_o.y,
+        "L", p1_i.x, p1_i.y,
+        "A", rInner, rInner, 0, largeArc, 0, p2_i.x, p2_i.y,
+        "Z"
+      ].join(" ");
+    }
+
+    // 1. Sombras de meses
+    let monthShadeAngle = angleOffset;
+    monthSegments.forEach((seg, index) => {
+      const monthSpan = (seg.days / totalDays) * 360;
+      const startAngle = monthShadeAngle;
+      const endAngle = monthShadeAngle + monthSpan;
+
+      if (index % 2 === 1) {
+        const shadePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        shadePath.setAttribute("d", describeSector(cx, cy, rDayInner - 12, rDayOuter + 12, startAngle, endAngle));
+        shadePath.setAttribute("class", "month-shade");
+        svg.appendChild(shadePath);
+      }
+      monthShadeAngle += monthSpan;
+    });
+
+    // 2. Rejillas
+    for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+      const rGrid = rDayOuter - (dayIdx * rDayStep);
+      const gridCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      gridCircle.setAttribute("cx", cx);
+      gridCircle.setAttribute("cy", cy);
+      gridCircle.setAttribute("r", rGrid);
+      gridCircle.setAttribute("class", "grid-circle");
+      svg.appendChild(gridCircle);
+    }
+
+    // 3. Constelaciones
+    constellations.forEach((c) => {
+      const startAngle = angleOffset + ((c.startAbs - 1) / totalDays) * 360;
+      const endAngle = angleOffset + (c.endAbs / totalDays) * 360;
+      const angleSpan = endAngle - startAngle;
+
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", describeArc(cx, cy, rConstArc, startAngle, endAngle - 0.3));
+      path.setAttribute("class", "constellation-arc");
+      svg.appendChild(path);
+
+      const midAngle = startAngle + (angleSpan / 2);
+      const labelPos = polarToCartesian(cx, cy, rConstLabel, midAngle);
+      const labelText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      labelText.setAttribute("x", labelPos.x); 
+      labelText.setAttribute("y", labelPos.y);
+      labelText.setAttribute("class", "constellation-label");
+      labelText.textContent = angleSpan < 15 ? c.name.substring(0, 3) : c.name;
+      svg.appendChild(labelText);
+
+      const centerPos = polarToCartesian(cx, cy, rStarMap, midAngle);
+      const pattern = starPatterns[c.name];
+
+      if (pattern) {
+        const starGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        starGroup.setAttribute("transform", `translate(${centerPos.x}, ${centerPos.y})`);
+
+        pattern.edges.forEach(edge => {
+          const p1 = pattern.nodes[edge[0]];
+          const p2 = pattern.nodes[edge[1]];
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
+          line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
+          line.setAttribute("class", "star-line");
+          starGroup.appendChild(line);
+        });
+
+        pattern.nodes.forEach(node => {
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("cx", node.x);
+          circle.setAttribute("cy", node.y);
+          circle.setAttribute("r", 2);
+          circle.setAttribute("class", "star-dot");
+          starGroup.appendChild(circle);
+        });
+
+        svg.appendChild(starGroup);
+      }
+    });
+
+    // 4. Anillo de Meses
+    let currentAngle = angleOffset;
+    monthSegments.forEach((seg) => {
+      const monthAngleSpan = (seg.days / totalDays) * 360;
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + monthAngleSpan;
+
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", describeArc(cx, cy, rMonth, startAngle, endAngle - 0.3));
+      path.setAttribute("class", "month-arc");
+      svg.appendChild(path);
+
+      const midAngle = startAngle + (monthAngleSpan / 2);
+      const labelPos = polarToCartesian(cx, cy, rMonth, midAngle);
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", labelPos.x); 
+      text.setAttribute("y", labelPos.y);
+      text.setAttribute("class", "month-label");
+      text.textContent = seg.name;
+      svg.appendChild(text);
+
+      currentAngle = endAngle;
+    });
+
+    // 5. Días y Lunas Flotantes
+    currentAngle = angleOffset;
+    let dayOfWeek = 2; 
+
+    monthSegments.forEach((seg) => {
+      const monthAngleSpan = (seg.days / totalDays) * 360;
+      const startAngle = currentAngle;
+      const dayAngleSpan = monthAngleSpan / seg.days;
+
+      for (let d = 0; d < seg.days; d++) {
+        const dayNum = seg.startDay + d;
+        const dayAngle = startAngle + ((d + 0.5) * dayAngleSpan);
+        const currentRDay = rDayOuter - (dayOfWeek * rDayStep);
+        const dateKey = `${seg.year}-${seg.monthNum}-${dayNum}`;
+
+        // Línea radial acotada únicamente a la banda de días
+        const p1 = polarToCartesian(cx, cy, rDayInner - 12, dayAngle);
+        const p2 = polarToCartesian(cx, cy, rDayOuter + 12, dayAngle);
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
+        line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
+        line.setAttribute("class", "day-tick");
+        svg.appendChild(line);
+
+        if (timeChangeDates.includes(dateKey)) {
+          const tc1 = polarToCartesian(cx, cy, rMonth - 22, dayAngle);
+          const tc2 = polarToCartesian(cx, cy, rDayOuter + 14, dayAngle);
+          const tcLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          tcLine.setAttribute("x1", tc1.x); tcLine.setAttribute("y1", tc1.y);
+          tcLine.setAttribute("x2", tc2.x); tcLine.setAttribute("y2", tc2.y);
+          tcLine.setAttribute("class", "time-change-line");
+          svg.appendChild(tcLine);
+        }
+
+        const dayPos = polarToCartesian(cx, cy, currentRDay, dayAngle);
+        const dayText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        dayText.setAttribute("x", dayPos.x);
+        dayText.setAttribute("y", dayPos.y);
+
+        const isWeekend = (dayOfWeek === 5 || dayOfWeek === 6);
+        const isSolstice = solsticeDates.includes(dateKey);
+
+        let dayClass = 'day-text';
+        if (isSolstice) {
+          dayClass += ' solstice';
+        } else if (isWeekend) {
+          dayClass += ' weekend';
+        }
+
+        dayText.setAttribute("class", dayClass);
+        dayText.textContent = dayNum;
+        svg.appendChild(dayText);
+
+        // Lunas suspendidas limpias
+        const moonType = moonPhases[dateKey];
+        if (moonType) {
+          const moonPos = polarToCartesian(cx, cy, rMoonRing, dayAngle);
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("cx", moonPos.x);
+          circle.setAttribute("cy", moonPos.y);
+          circle.setAttribute("r", 7.5);
+          circle.setAttribute("class", moonType === 'FULL' ? 'moon-full' : 'moon-new');
+          svg.appendChild(circle);
+        }
+
+        dayOfWeek = (dayOfWeek + 1) % 7;
+      }
+
+      currentAngle += monthAngleSpan;
+    });
+
+    // 6. Líneas de Cuadrantes (Solsticios / Equinoccios)
+    quadrantDays.forEach(absDay => {
+      const qAngle = angleOffset + ((absDay - 0.5) / totalDays) * 360;
+
+      const p1 = polarToCartesian(cx, cy, rMonth - 22, qAngle);
+      const p2 = polarToCartesian(cx, cy, rDayOuter + 18, qAngle);
+
+      const qLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      qLine.setAttribute("x1", p1.x); qLine.setAttribute("y1", p1.y);
+      qLine.setAttribute("x2", p2.x); qLine.setAttribute("y2", p2.y);
+      qLine.setAttribute("class", "quadrant-line");
+      svg.appendChild(qLine);
+    });
+
+    // 7. Exportador PNG Ultra HD
+    document.getElementById('btn-download').addEventListener('click', async () => {
+      await document.fonts.load('12px Inter');
+
+      const svgElement = document.getElementById('circular-calendar');
+      const svgClone = svgElement.cloneNode(true);
+      svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+      const fontImport = `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');\n`;
+      let styles = fontImport;
+      
+      Array.from(document.styleSheets).forEach(sheet => {
+        try {
+          Array.from(sheet.cssRules || []).forEach(rule => {
+            styles += rule.cssText + '\n';
+          });
+        } catch (e) {}
+      });
+
+      const styleElement = document.createElement('style');
+      styleElement.textContent = styles;
+      svgClone.insertBefore(styleElement, svgClone.firstChild);
+
+      const canvasSize = 4600;
+      const calendarSize = 3900;
+      const margin = (canvasSize - calendarSize) / 2;
+
+      const xml = new XMLSerializer().serializeToString(svgClone);
+      const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      const img = new Image();
+      img.onload = function () {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasSize;
+        canvas.height = canvasSize;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#060913';
+        ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+        ctx.drawImage(img, margin, margin, calendarSize, calendarSize);
+        URL.revokeObjectURL(url);
+
+        const a = document.createElement('a');
+        a.download = 'Poster_Calendario_Circular_2026_2027.png';
+        a.href = canvas.toDataURL('image/png', 1.0);
+        a.click();
+      };
+
+      img.src = url;
+    });
+  </script>
+
+</body>
+</html>
