@@ -376,13 +376,8 @@ a { color: #c3ceff; }
 
   // Crear el prompt para la siguiente imagen.
   function buildNextPrompt(description) {
-    return (
-      "Genera una nueva imagen inspirada en estos elementos visuales: " +
-      description +
-      ". Crea una composición coherente y visualmente atractiva; " +
-      "puedes reinterpretar la escena."
-    );
-  }
+  return description;
+}
 
   function updateButton() {
     if (nextAction === "describe") {
