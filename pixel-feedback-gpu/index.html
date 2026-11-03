@@ -1,0 +1,910 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PIXEL FEEDBACK ENGINE GPU PRO</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 20px;
+    background: #101216;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+main {
+    max-width: 1100px;
+    margin: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 20px;
+}
+
+h1 {
+    font-size: 21px;
+}
+
+h1 span { color: #ff4444; }
+
+canvas {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    background: black;
+    image-rendering: pixelated;
+    touch-action: none;
+}
+
+.panel {
+    background: #1c2027;
+    padding: 16px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+label {
+    display: flex;
+    justify-content: space-between;
+    color: #bbb;
+    font-size: 13px;
+    margin-bottom: 7px;
+}
+
+input, select { width: 100%; }
+
+input[type=range] { accent-color: #ff4444; }
+
+select, button {
+    padding: 9px;
+    color: white;
+    background: #303640;
+    border: 1px solid #505966;
+    border-radius: 5px;
+}
+
+button { cursor: pointer; }
+
+.colors {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+}
+
+.colors button { font-size: 11px; padding: 8px 2px; }
+
+.colors button.active {
+    outline: 2px solid white;
+}
+
+.actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.status {
+    font-size: 12px;
+    color: #9fdaa5;
+}
+
+@media(max-width: 750px) {
+    main { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+
+<body>
+
+<main>
+
+<section>
+    <h1>PIXEL FEEDBACK ENGINE <span>GPU PRO</span></h1>
+    <p style="color:#999;font-size:13px">
+        WebGL 2.0 · GLSL · GPU Feedback Processing
+    </p>
+
+    <canvas id="view"></canvas>
+
+    <p style="color:#999;font-size:12px">
+        Arrastra el ratón para pintar.
+        Teclas 1-5: colores. R: reset. Espacio: pausa.
+    </p>
+</section>
+
+<aside class="panel">
+
+<div>
+    <label>Resolución interna</label>
+    <select id="resolution">
+        <option value="600,600">600 × 600</option>
+        <option value="1024,1024" selected>1024 × 1024</option>
+        <option value="1920,1080">1920 × 1080</option>
+        <option value="2560,2560">2560 × 2560</option>
+        <option value="3840,2160">3840 × 2160</option>
+    </select>
+</div>
+
+<div>
+    <label>Ángulo <output id="angleVal"></output></label>
+    <input id="angle" type="range"
+        min="0" max="6.283" step=".001" value="1.8">
+</div>
+
+<div>
+    <label>Zoom <output id="zoomVal"></output></label>
+    <input id="zoom" type="range"
+        min=".9" max="1.1" step=".001" value="1">
+</div>
+
+<div>
+    <label>Exposición <output id="exposureVal"></output></label>
+    <input id="exposure" type="range"
+        min="0" max="2" step=".001" value="1.95">
+</div>
+
+<div>
+    <label>Tamaño de píxel <output id="pixelVal"></output></label>
+    <input id="pixel" type="range"
+        min="1" max="16" step="1" value="4">
+</div>
+
+<div>
+    <label>Radio del pincel <output id="radiusVal"></output></label>
+    <input id="radius" type="range"
+        min="4" max="120" value="20">
+</div>
+
+<div>
+    <label>Color</label>
+    <div class="colors">
+        <button class="active" data-color="0,0,0">Negro</button>
+        <button data-color="255,255,255">Blanco</button>
+        <button data-color="255,0,0">Rojo</button>
+        <button data-color="0,255,0">Verde</button>
+        <button data-color="0,0,255">Azul</button>
+    </div>
+</div>
+
+<div class="actions">
+    <button id="pause">Pausar</button>
+    <button id="reset">Reset</button>
+</div>
+
+<div class="status" id="status">
+    Inicializando GPU...
+</div>
+
+</aside>
+</main>
+
+<script>
+
+// =====================================================
+// WEBGL 2
+// =====================================================
+
+const canvas = document.getElementById("view");
+
+const gl = canvas.getContext("webgl2", {
+    alpha: false,
+    antialias: false,
+    depth: false,
+    stencil: false
+});
+
+const status = document.getElementById("status");
+
+if (!gl) {
+    status.textContent =
+        "WebGL 2 no disponible. Activa aceleración por hardware.";
+    throw new Error("WebGL 2 unavailable");
+}
+
+
+// =====================================================
+// VERTEX SHADER
+// =====================================================
+
+const vertexShader = `#version 300 es
+
+precision highp float;
+
+const vec2 vertices[3] = vec2[3](
+    vec2(-1.,-1.),
+    vec2(3.,-1.),
+    vec2(-1.,3.)
+);
+
+out vec2 uv;
+
+void main() {
+
+    vec2 p = vertices[gl_VertexID];
+
+    uv = p * 0.5 + 0.5;
+
+    gl_Position = vec4(p,0.,1.);
+}
+
+`;
+
+
+// =====================================================
+// FEEDBACK FRAGMENT SHADER
+// =====================================================
+
+const feedbackShader = `#version 300 es
+
+precision highp float;
+
+in vec2 uv;
+
+out vec4 outColor;
+
+uniform sampler2D uPrev;
+
+uniform vec2 uSize;
+
+uniform float uAngle;
+uniform float uZoom;
+uniform float uExposure;
+uniform float uPixel;
+
+uniform float uBrushRadius;
+uniform vec2 uBrush;
+uniform vec3 uBrushColor;
+
+uniform int uPaint;
+
+void main() {
+
+    vec2 frag = uv * uSize;
+
+    vec2 center = uSize * 0.5 + vec2(1.,0.);
+
+    // Camera transformation
+
+    vec2 d = (frag - center) * uZoom;
+
+    float c = cos(uAngle);
+    float s = sin(uAngle);
+
+    vec2 source = center + vec2(
+        d.x * c - d.y * s,
+        d.x * s + d.y * c
+    );
+
+    // Pixel quantization
+
+    vec2 q = (
+        floor(source / uPixel) + 0.5
+    ) * uPixel;
+
+    vec2 sampleUV = q / uSize;
+
+    // Outside color
+
+    vec3 previous = vec3(0.);
+
+    if (
+        all(greaterThanEqual(sampleUV,vec2(0.))) &&
+        all(lessThanEqual(sampleUV,vec2(1.)))
+    ) {
+        previous = texture(uPrev,sampleUV).rgb;
+    }
+
+    // Previous screen
+
+    vec3 current = texture(uPrev,uv).rgb;
+
+    // Feedback mixture
+
+    float amount = clamp(uExposure * 0.5,0.,1.);
+
+    vec3 color = mix(
+        current,
+        previous,
+        amount
+    );
+
+    // Brush
+
+    if (
+        uPaint == 1 &&
+        distance(frag,uBrush) <= uBrushRadius
+    ) {
+        color = uBrushColor;
+    }
+
+    // Camera frame
+
+    float edge = min(
+        min(abs(source.x),abs(source.y)),
+        min(abs(uSize.x-source.x),abs(uSize.y-source.y))
+    );
+
+    if(edge < 1.5) {
+        color = vec3(1.,0.,0.);
+    }
+
+    outColor = vec4(clamp(color,0.,1.),1.);
+
+}
+
+`;
+
+
+// =====================================================
+// DISPLAY SHADER
+// =====================================================
+
+const displayShader = `#version 300 es
+
+precision highp float;
+
+in vec2 uv;
+
+out vec4 outColor;
+
+uniform sampler2D uImage;
+
+void main() {
+
+    outColor = vec4(
+        texture(uImage,uv).rgb,
+        1.
+    );
+
+}
+
+`;
+
+
+// =====================================================
+// SHADER COMPILATION
+// =====================================================
+
+function compileShader(type,source) {
+
+    const shader = gl.createShader(type);
+
+    gl.shaderSource(shader,source);
+
+    gl.compileShader(shader);
+
+    if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(shader));
+    }
+
+    return shader;
+}
+
+
+function createProgram(vs,fs) {
+
+    const program = gl.createProgram();
+
+    gl.attachShader(
+        program,
+        compileShader(gl.VERTEX_SHADER,vs)
+    );
+
+    gl.attachShader(
+        program,
+        compileShader(gl.FRAGMENT_SHADER,fs)
+    );
+
+    gl.linkProgram(program);
+
+    if(!gl.getProgramParameter(program,gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(program));
+    }
+
+    return program;
+}
+
+
+const feedbackProgram = createProgram(
+    vertexShader,
+    feedbackShader
+);
+
+const displayProgram = createProgram(
+    vertexShader,
+    displayShader
+);
+
+const vao = gl.createVertexArray();
+
+gl.bindVertexArray(vao);
+
+
+// =====================================================
+// UNIFORMS
+// =====================================================
+
+function getUniforms(program,names) {
+
+    const result = {};
+
+    names.forEach(name => {
+        result[name] = gl.getUniformLocation(program,name);
+    });
+
+    return result;
+}
+
+const U = getUniforms(feedbackProgram,[
+    "uPrev",
+    "uSize",
+    "uAngle",
+    "uZoom",
+    "uExposure",
+    "uPixel",
+    "uBrushRadius",
+    "uBrush",
+    "uBrushColor",
+    "uPaint"
+]);
+
+const D = getUniforms(displayProgram,[
+    "uImage"
+]);
+
+
+// =====================================================
+// DOUBLE GPU BUFFER
+// =====================================================
+
+let width = 1024;
+let height = 1024;
+
+let front;
+let back;
+
+let frontFBO;
+let backFBO;
+
+
+function createTarget(w,h) {
+
+    const texture = gl.createTexture();
+
+    gl.bindTexture(gl.TEXTURE_2D,texture);
+
+    gl.texParameteri(
+        gl.TEXTURE_2D,
+        gl.TEXTURE_MIN_FILTER,
+        gl.NEAREST
+    );
+
+    gl.texParameteri(
+        gl.TEXTURE_2D,
+        gl.TEXTURE_MAG_FILTER,
+        gl.NEAREST
+    );
+
+    gl.texParameteri(
+        gl.TEXTURE_2D,
+        gl.TEXTURE_WRAP_S,
+        gl.CLAMP_TO_EDGE
+    );
+
+    gl.texParameteri(
+        gl.TEXTURE_2D,
+        gl.TEXTURE_WRAP_T,
+        gl.CLAMP_TO_EDGE
+    );
+
+    gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA8,
+        w,
+        h,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        null
+    );
+
+    const fbo = gl.createFramebuffer();
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
+
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D,
+        texture,
+        0
+    );
+
+    if(
+        gl.checkFramebufferStatus(gl.FRAMEBUFFER) !==
+        gl.FRAMEBUFFER_COMPLETE
+    ) {
+        throw new Error("Framebuffer incompatible");
+    }
+
+    return {texture,fbo};
+}
+
+
+// =====================================================
+// INITIALIZE RESOLUTION
+// =====================================================
+
+function resize(w,h) {
+
+    width = w;
+    height = h;
+
+    canvas.width = w;
+    canvas.height = h;
+
+    const a = createTarget(w,h);
+    const b = createTarget(w,h);
+
+    front = a.texture;
+    frontFBO = a.fbo;
+
+    back = b.texture;
+    backFBO = b.fbo;
+
+    reset();
+
+    gl.viewport(0,0,w,h);
+
+    status.textContent =
+        `GPU activa · ${w} × ${h} · ${(w*h/1000000).toFixed(2)} MP`;
+}
+
+
+// =====================================================
+// RESET
+// =====================================================
+
+function reset() {
+
+    for(const fbo of [frontFBO,backFBO]) {
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
+
+        gl.clearColor(1,1,1,1);
+
+        gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+}
+
+
+// =====================================================
+// INTERFACE
+// =====================================================
+
+const $ = id => document.getElementById(id);
+
+const angle = $("angle");
+const zoom = $("zoom");
+const exposure = $("exposure");
+const pixel = $("pixel");
+const radius = $("radius");
+
+function bindRange(element,output,format) {
+
+    const update = () => {
+        $(output).textContent = format(+element.value);
+    };
+
+    element.addEventListener("input",update);
+
+    update();
+}
+
+bindRange(angle,"angleVal",v =>
+    (v*180/Math.PI).toFixed(1)+"°"
+);
+
+bindRange(zoom,"zoomVal",v =>
+    v.toFixed(3)+"×"
+);
+
+bindRange(exposure,"exposureVal",v =>
+    v.toFixed(3)
+);
+
+bindRange(pixel,"pixelVal",v =>
+    v+" px"
+);
+
+bindRange(radius,"radiusVal",v =>
+    v+" px"
+);
+
+
+// =====================================================
+// BRUSH
+// =====================================================
+
+let brush = [0,0,0];
+
+let pointer = [-10000,-10000];
+
+let painting = false;
+
+let paintNow = false;
+
+document.querySelectorAll("[data-color]").forEach(button => {
+
+    button.addEventListener("click",() => {
+
+        brush = button.dataset.color
+            .split(",")
+            .map(Number);
+
+        document.querySelectorAll("[data-color]")
+            .forEach(b => b.classList.toggle(
+                "active",
+                b === button
+            ));
+    });
+});
+
+
+function updatePointer(e) {
+
+    const rect = canvas.getBoundingClientRect();
+
+    pointer = [
+        (e.clientX-rect.left)/rect.width*width,
+        (1-(e.clientY-rect.top)/rect.height)*height
+    ];
+}
+
+
+canvas.addEventListener("pointerdown",e => {
+
+    painting = true;
+
+    canvas.setPointerCapture(e.pointerId);
+
+    updatePointer(e);
+
+    paintNow = true;
+});
+
+
+canvas.addEventListener("pointermove",e => {
+
+    updatePointer(e);
+
+    if(painting) {
+        paintNow = true;
+    }
+});
+
+
+canvas.addEventListener("pointerup",() => {
+    painting = false;
+});
+
+canvas.addEventListener("pointercancel",() => {
+    painting = false;
+});
+
+
+// =====================================================
+// RESOLUTION CONTROL
+// =====================================================
+
+$("resolution").addEventListener("change",e => {
+
+    const [w,h] = e.target.value.split(",").map(Number);
+
+    try {
+        resize(w,h);
+    } catch(error) {
+        status.textContent = error.message;
+    }
+});
+
+
+// =====================================================
+// PAUSE / RESET
+// =====================================================
+
+let paused = false;
+
+$("pause").addEventListener("click",() => {
+
+    paused = !paused;
+
+    $("pause").textContent =
+        paused ? "Reanudar" : "Pausar";
+});
+
+$("reset").addEventListener("click",reset);
+
+
+// =====================================================
+// GPU FEEDBACK LOOP
+// =====================================================
+
+function draw() {
+
+    if(!paused) {
+
+        gl.bindFramebuffer(
+            gl.FRAMEBUFFER,
+            backFBO
+        );
+
+        gl.viewport(0,0,width,height);
+
+        gl.useProgram(feedbackProgram);
+
+        gl.bindVertexArray(vao);
+
+        // Previous frame texture
+
+        gl.activeTexture(gl.TEXTURE0);
+
+        gl.bindTexture(
+            gl.TEXTURE_2D,
+            front
+        );
+
+        gl.uniform1i(U.uPrev,0);
+
+        // Camera parameters
+
+        gl.uniform2f(U.uSize,width,height);
+
+        gl.uniform1f(U.uAngle,+angle.value);
+
+        gl.uniform1f(U.uZoom,+zoom.value);
+
+        gl.uniform1f(U.uExposure,+exposure.value);
+
+        gl.uniform1f(U.uPixel,+pixel.value);
+
+        // Brush
+
+        gl.uniform1f(
+            U.uBrushRadius,
+            +radius.value
+        );
+
+        gl.uniform2f(
+            U.uBrush,
+            pointer[0],
+            pointer[1]
+        );
+
+        gl.uniform3f(
+            U.uBrushColor,
+            brush[0]/255,
+            brush[1]/255,
+            brush[2]/255
+        );
+
+        gl.uniform1i(
+            U.uPaint,
+            paintNow ? 1 : 0
+        );
+
+        // Fullscreen GPU computation
+
+        gl.drawArrays(
+            gl.TRIANGLES,
+            0,
+            3
+        );
+
+        // Swap buffers
+
+        [front,back] = [back,front];
+
+        [frontFBO,backFBO] = [
+            backFBO,
+            frontFBO
+        ];
+
+        paintNow = false;
+    }
+
+    // Display to screen
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+
+    gl.viewport(0,0,canvas.width,canvas.height);
+
+    gl.useProgram(displayProgram);
+
+    gl.bindVertexArray(vao);
+
+    gl.activeTexture(gl.TEXTURE0);
+
+    gl.bindTexture(gl.TEXTURE_2D,front);
+
+    gl.uniform1i(D.uImage,0);
+
+    gl.drawArrays(
+        gl.TRIANGLES,
+        0,
+        3
+    );
+
+    requestAnimationFrame(draw);
+}
+
+
+// =====================================================
+// KEYBOARD
+// =====================================================
+
+window.addEventListener("keydown",e => {
+
+    const colors = {
+        "1":[0,0,0],
+        "2":[255,255,255],
+        "3":[255,0,0],
+        "4":[0,255,0],
+        "5":[0,0,255]
+    };
+
+    if(colors[e.key]) {
+
+        brush = colors[e.key];
+
+        document.querySelectorAll("[data-color]")
+            .forEach(b => b.classList.toggle(
+                "active",
+                b.dataset.color === brush.join(",")
+            ));
+    }
+
+    if(e.key.toLowerCase() === "r") {
+        reset();
+    }
+
+    if(e.code === "Space" &&
+       e.target.tagName !== "INPUT" &&
+       e.target.tagName !== "SELECT") {
+
+        $("pause").click();
+
+        e.preventDefault();
+    }
+});
+
+
+// =====================================================
+// START ENGINE
+// =====================================================
+
+try {
+
+    resize(width,height);
+
+    requestAnimationFrame(draw);
+
+} catch(error) {
+
+    status.textContent = "ERROR GPU: " + error.message;
+
+    console.error(error);
+}
+
+</script>
+</body>
+</html>
