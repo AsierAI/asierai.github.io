@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ilusión de la Bailarina Giratoria 3D Exacta</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --panel-bg: rgba(255, 255, 255, 0.25);
+            --accent-a: #ff4757;
+            --accent-b: #2ed573;
+            --text-color: #2f3542;
+            --border: 1px solid rgba(0, 0, 0, 0.12);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text-color);
+            user-select: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* Botón Flotante para Alternar Panel */
+        #btn-toggle-menu {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 20;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: var(--border);
+            color: var(--text-color);
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #btn-toggle-menu:hover {
+            background: rgba(255, 255, 255, 0.45);
+            transform: scale(1.05);
+        }
+
+        #btn-toggle-menu svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            transition: transform 0.3s ease;
+        }
+
+        /* Panel UI Flotante */
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            width: 320px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            padding-top: 60px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+            transform-origin: top right;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+
+        /* Estado Oculto del Menú */
+        #ui-panel.collapsed {
+            transform: scale(0.8) translateY(-20px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 0.95rem;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #1e272e;
+            border-bottom: var(--border);
+            padding-bottom: 8px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #4b6584;
+        }
+
+        .value-display {
+            color: #1e272e;
+            font-family: monospace;
+        }
+
+        /* Botones de Modo */
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.3);
+            border: var(--border);
+            color: var(--text-color);
+            padding: 9px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.78rem;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.55);
+        }
+
+        button.active {
+            background: #3742fa;
+            border-color: #5352ed;
+            color: #fff;
+        }
+
+        /* Toggles de Visibilidad */
+        .toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border: var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .toggle-btn.obj-a.active {
+            border-color: var(--accent-a);
+            background: rgba(255, 71, 87, 0.18);
+        }
+
+        .toggle-btn.obj-b.active {
+            border-color: var(--accent-b);
+            background: rgba(46, 213, 115, 0.18);
+        }
+
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #a4b0be;
+        }
+
+        .obj-a .indicator { background: var(--accent-a); }
+        .obj-b .indicator { background: var(--accent-b); }
+
+        /* Controles de Rango */
+        input[type=range] {
+            width: 100%;
+            accent-color: #3742fa;
+            cursor: pointer;
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <button id="btn-toggle-menu" onclick="toggleMenu()" title="Mostrar/Ocultar Menú">
+        <svg id="menu-icon" viewBox="0 0 24 24">
+            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+        </svg>
+    </button>
+
+    <div id="ui-panel">
+        <h1>Bailarina Ambigua 3D</h1>
+
+        <div class="control-group">
+            <label>Modo de Visualización</label>
+            <div class="btn-group">
+                <button id="btn-silhouette" class="active" onclick="setRenderMode('silhouette')">Silueta 2D</button>
+                <button id="btn-textured" onclick="setRenderMode('textured')">Estructura 3D</button>
+            </div>
+            <button id="btn-edges" style="margin-top: 4px;" onclick="setRenderMode('edges')">Solo Aristas (Wireframe)</button>
+        </div>
+
+        <div class="control-group">
+            <label>Desplazar Espejo (Z) <span id="val-mirror-z" class="value-display">0.0</span></label>
+            <input type="range" id="slider-mirror-z" min="-10" max="10" step="0.2" value="0" oninput="updateOrientation()">
+        </div>
+
+        <div class="control-group">
+            <label>Inclinación Eje X <span id="val-tilt-x" class="value-display">25°</span></label>
+            <input type="range" id="slider-tilt-x" min="-60" max="60" value="25" oninput="updateOrientation()">
+        </div>
+
+        <div class="control-group">
+            <label>Inclinación Eje Z <span id="val-tilt-z" class="value-display">15°</span></label>
+            <input type="range" id="slider-tilt-z" min="-60" max="60" value="15" oninput="updateOrientation()">
+        </div>
+
+        <div class="control-group">
+            <label>Orientación Figura (X) <span id="val-orient-x" class="value-display">0°</span></label>
+            <input type="range" id="slider-orient-x" min="-180" max="180" value="0" oninput="updateOrientation()">
+        </div>
+
+        <div class="control-group">
+            <label>Orientación Figura (Z) <span id="val-orient-z" class="value-display">0°</span></label>
+            <input type="range" id="slider-orient-z" min="-180" max="180" value="0" oninput="updateOrientation()">
+        </div>
+
+        <div class="control-group">
+            <label>Objetos en Escena</label>
+            <div class="toggle-btn obj-a active" id="btn-toggle-a" onclick="toggleObject('A')">
+                <span>Objeto Original (Horario)</span>
+                <div class="indicator"></div>
+            </div>
+            <div class="toggle-btn obj-b active" id="btn-toggle-b" onclick="toggleObject('B')">
+                <span>Copia Espejo (Antihorario)</span>
+                <div class="indicator"></div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Velocidad de Rotación</label>
+            <input type="range" id="slider-speed" min="0" max="2" step="0.05" value="0.5">
+        </div>
+
+        <button onclick="resetPhase()">Sincronizar Fase</button>
+        <button onclick="resetCamera()">Vista Frontal (Ortográfica)</button>
+    </div>
+
+    <script>
+        // --- 1. Control de Menú Desplegable ---
+        let menuVisible = true;
+        
+        function toggleMenu() {
+            const panel = document.getElementById('ui-panel');
+            const icon = document.getElementById('menu-icon');
+            menuVisible = !menuVisible;
+            
+            panel.classList.toggle('collapsed', !menuVisible);
+            
+            if (menuVisible) {
+                icon.innerHTML = '<path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>';
+            } else {
+                icon.innerHTML = '<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>';
+            }
+        }
+
+        // --- 2. Inicialización de Escena y Cámara Ortográfica ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+
+        // Fondo gris casi blanco unificado
+        const backgroundColor = new THREE.Color(0xf0f2f5);
+        scene.background = backgroundColor;
+
+        const aspect = window.innerWidth / window.innerHeight;
+        const frustumSize = 14;
+        
+        const camera = new THREE.OrthographicCamera(
+            frustumSize * aspect / -2,
+            frustumSize * aspect / 2,
+            frustumSize / 2,
+            frustumSize / -2,
+            0.1,
+            1000
+        );
+
+        const initialCamPos = new THREE.Vector3(0, 0, 50);
+        camera.position.copy(initialCamPos);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // --- 3. Iluminación ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 15);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const fillLight = new THREE.DirectionalLight(0x3742fa, 0.4);
+        fillLight.position.set(-10, -10, -10);
+        scene.add(fillLight);
+
+        // --- 4. Geometría ---
+        const cubePositions = [
+            [0, -3, 0], [0, -2, 0], [0, -1, 0], [0, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0],
+            [1, 2, 0], [2, 2, 0], [2, 2, 1], [2, 2, 2],
+            [-1, -1, 0], [-2, -1, -1], [-2, -2, -1]
+        ];
+
+        // Materiales Caras
+        const matSilBlack = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const matTexA = new THREE.MeshStandardMaterial({ color: 0xff4757, roughness: 0.3, metalness: 0.1 });
+        const matTexB = new THREE.MeshStandardMaterial({ color: 0x2ed573, roughness: 0.3, metalness: 0.1 });
+
+        // Materiales Aristas (Edges)
+        const lineMatBlack = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1.5 });
+        const lineMatA = new THREE.LineBasicMaterial({ color: 0xff4757, linewidth: 1.5 });
+        const lineMatB = new THREE.LineBasicMaterial({ color: 0x2ed573, linewidth: 1.5 });
+
+        const boxGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+        const edgesGeo = new THREE.EdgesGeometry(boxGeo);
+
+        // --- 5. Construcción de Nodos ---
+        const meshA = new THREE.Group();
+        const meshB = new THREE.Group();
+
+        cubePositions.forEach(pos => {
+            // Sólidos
+            const mA = new THREE.Mesh(boxGeo);
+            mA.position.set(pos[0], pos[1], pos[2]);
+            mA.castShadow = true;
+            mA.receiveShadow = true;
+            meshA.add(mA);
+
+            const mB = new THREE.Mesh(boxGeo);
+            mB.position.set(pos[0], pos[1], -pos[2]); // Espejo en Z
+            mB.castShadow = true;
+            mB.receiveShadow = true;
+            meshB.add(mB);
+
+            // Aristas
+            const lineA = new THREE.LineSegments(edgesGeo);
+            lineA.position.set(pos[0], pos[1], pos[2]);
+            lineA.name = "edge";
+            meshA.add(lineA);
+
+            const lineB = new THREE.LineSegments(edgesGeo);
+            lineB.position.set(pos[0], pos[1], -pos[2]);
+            lineB.name = "edge";
+            meshB.add(lineB);
+        });
+
+        const pivotA = new THREE.Group();
+        const pivotB = new THREE.Group();
+
+        pivotA.add(meshA);
+        pivotB.add(meshB);
+
+        scene.add(pivotA);
+        scene.add(pivotB);
+
+        // --- 6. Estado y Orientación ---
+        let currentMode = 'silhouette'; // 'silhouette', 'textured', 'edges'
+        let showA = true;
+        let showB = true;
+        let angle = 0;
+
+        function updateOrientation() {
+            // Posición del Espejo (Offset Z)
+            const mirrorZ = parseFloat(document.getElementById('slider-mirror-z').value);
+
+            // Ejes de inclinación principales
+            const tiltXDeg = parseFloat(document.getElementById('slider-tilt-x').value);
+            const tiltZDeg = parseFloat(document.getElementById('slider-tilt-z').value);
+
+            // Orientación interna propia de la figura
+            const orientXDeg = parseFloat(document.getElementById('slider-orient-x').value);
+            const orientZDeg = parseFloat(document.getElementById('slider-orient-z').value);
+
+            document.getElementById('val-mirror-z').innerText = mirrorZ.toFixed(1);
+            document.getElementById('val-tilt-x').innerText = tiltXDeg + '°';
+            document.getElementById('val-tilt-z').innerText = tiltZDeg + '°';
+            document.getElementById('val-orient-x').innerText = orientXDeg + '°';
+            document.getElementById('val-orient-z').innerText = orientZDeg + '°';
+
+            const radTiltX = (tiltXDeg * Math.PI) / 180;
+            const radTiltZ = (tiltZDeg * Math.PI) / 180;
+            const radOrientX = (orientXDeg * Math.PI) / 180;
+            const radOrientZ = (orientZDeg * Math.PI) / 180;
+
+            // Inclinación global de los pivotes
+            pivotA.rotation.set(radTiltX, 0, radTiltZ, 'XYZ');
+            pivotB.rotation.set(-radTiltX, 0, radTiltZ, 'XYZ');
+
+            // Posicionamiento en el eje Z respecto al espejo
+            pivotA.position.z = 0;
+            pivotB.position.z = mirrorZ;
+
+            // Orientación interna del objeto original
+            meshA.rotation.x = radOrientX;
+            meshA.rotation.z = radOrientZ;
+
+            // Orientación simétrica exacta para el objeto espejo en Z
+            meshB.rotation.x = -radOrientX;
+            meshB.rotation.z = radOrientZ;
+        }
+
+        function applyMaterials() {
+            meshA.children.forEach(c => {
+                if (c.isMesh) {
+                    c.visible = (currentMode !== 'edges');
+                    c.material = (currentMode === 'silhouette') ? matSilBlack : matTexA;
+                } else if (c.isLineSegments) {
+                    c.visible = (currentMode === 'edges');
+                    c.material = lineMatBlack; // Mantiene el negro uniforme de las aristas
+                }
+            });
+
+            meshB.children.forEach(c => {
+                if (c.isMesh) {
+                    c.visible = (currentMode !== 'edges');
+                    c.material = (currentMode === 'silhouette') ? matSilBlack : matTexB;
+                } else if (c.isLineSegments) {
+                    c.visible = (currentMode === 'edges');
+                    c.material = lineMatBlack; // Mantiene el negro uniforme de las aristas
+                }
+            });
+
+            if (currentMode === 'silhouette' || currentMode === 'edges') {
+                ambientLight.intensity = 1.0;
+                dirLight.intensity = 0;
+            } else {
+                ambientLight.intensity = 0.4;
+                dirLight.intensity = 0.8;
+            }
+        }
+
+        // --- 7. Bucle de Animación ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            const speed = parseFloat(document.getElementById('slider-speed').value);
+            
+            angle += delta * speed * 2.0;
+
+            // Rotación sobre su propio eje Y
+            meshA.rotation.y = -angle;
+            meshB.rotation.y = angle;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- 8. Manejadores de Interfaz ---
+        function setRenderMode(mode) {
+            currentMode = mode;
+            document.getElementById('btn-silhouette').classList.toggle('active', mode === 'silhouette');
+            document.getElementById('btn-textured').classList.toggle('active', mode === 'textured');
+            document.getElementById('btn-edges').classList.toggle('active', mode === 'edges');
+            applyMaterials();
+        }
+
+        function toggleObject(obj) {
+            if (obj === 'A') {
+                showA = !showA;
+                pivotA.visible = showA;
+                document.getElementById('btn-toggle-a').classList.toggle('active', showA);
+            } else if (obj === 'B') {
+                showB = !showB;
+                pivotB.visible = showB;
+                document.getElementById('btn-toggle-b').classList.toggle('active', showB);
+            }
+        }
+
+        function resetPhase() {
+            angle = 0;
+        }
+
+        function resetCamera() {
+            controls.reset();
+            camera.position.copy(initialCamPos);
+            camera.lookAt(0, 0, 0);
+        }
+
+        window.addEventListener('resize', () => {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.left = -frustumSize * aspect / 2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = -frustumSize / 2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Inicializar Estado
+        updateOrientation();
+        applyMaterials();
+        animate();
+    </script>
+</body>
+</html>
