@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Laboratorio de Vida Artificial y Enjambre</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-void: #05070c;
+            --glass-bg: rgba(10, 14, 24, 0.72);
+            --glass-border: rgba(148, 163, 184, 0.16);
+            --accent-cyan: #22d3ee;
+            --accent-emerald: #34d399;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--bg-void);
+            font-family: 'Inter', sans-serif;
+            color: #e2e8f0;
+            user-select: none;
+        }
+
+        .font-mono-tech {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Estética Glassmorphism oscuro */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+        }
+
+        /* Scrollbar fino y discreto */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.25);
+            border-radius: 999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(34, 211, 238, 0.55);
+        }
+
+        /* Sliders técnicos personalizados */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 4px;
+            background: rgba(30, 41, 59, 0.9);
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #22d3ee;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.8);
+            transition: transform 0.12s ease, background-color 0.12s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.22);
+            background: #67e8f9;
+        }
+        input[type="range"]:focus {
+            outline: none;
+        }
+
+        /* Transiciones suaves para colapsar paneles y modo Zen */
+        .ui-transition {
+            transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+        }
+        .panel-collapsed-right {
+            transform: translateX(calc(100% + 24px));
+            opacity: 0;
+            pointer-events: none;
+        }
+        .zen-hidden {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        .zen-top-hidden {
+            transform: translate(-50%, -140%) !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LIENZO PRINCIPAL A PANTALLA COMPLETA (100vw x 100vh) -->
+    <canvas id="mainCanvas" class="fixed inset-0 w-screen h-screen block cursor-crosshair z-0"></canvas>
+
+    <!-- INDICADOR VISUAL DEL RADIO DE INFLUENCIA DEL PUNTERO -->
+    <div id="pointerCursor" class="fixed pointer-events-none rounded-full border border-cyan-400/60 bg-cyan-400/5 shadow-[0_0_24px_rgba(34,211,238,0.22)] z-10 hidden" style="transform: translate(-50%, -50%);"></div>
+
+    <!-- BARRA FLOTANTE SUPERIOR MÍNIMA Y ELEGANTE -->
+    <header id="topBar" class="fixed top-3.5 left-1/2 -translate-x-1/2 z-30 glass-panel rounded-2xl px-2.5 py-2 flex items-center gap-1.5 sm:gap-2.5 max-w-[96vw] ui-transition">
+        <!-- Selector de Modo (1 vs 3) -->
+        <div class="flex items-center bg-slate-950/70 p-1 rounded-xl border border-slate-800/80">
+            <button id="btnModeParticle" class="px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-[0_0_12px_rgba(34,211,238,0.18)] whitespace-nowrap">
+                <span class="hidden sm:inline">1. Vida Artificial (Particle Life)</span>
+                <span class="sm:hidden">1. Particle Life</span>
+            </button>
+            <button id="btnModeSwarm" class="px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer text-slate-400 hover:text-slate-200 border border-transparent whitespace-nowrap">
+                <span class="hidden sm:inline">3. Enjambre (Physarum + Boids)</span>
+                <span class="sm:hidden">3. Enjambre</span>
+            </button>
+        </div>
+
+        <div class="h-5 w-[1px] bg-slate-800 hidden sm:block"></div>
+
+        <!-- Controles Globales de Reproducción y Utilidades -->
+        <div class="flex items-center gap-1.5">
+            <button id="btnPlayPause" title="Play / Pausa (Espacio)" class="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/70 text-cyan-300 transition cursor-pointer flex items-center gap-1.5 text-xs font-mono-tech">
+                <svg id="iconPause" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6" />
+                </svg>
+                <svg id="iconPlay" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                </svg>
+            </button>
+
+            <button id="btnReset" title="Reiniciar / Sembrar de nuevo (R)" class="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/70 text-slate-200 transition cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </button>
+
+            <button id="btnSnapshot" title="Capturar imagen PNG del lienzo" class="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/70 text-emerald-300 transition cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            </button>
+
+            <button id="btnZenMode" title="Ocultar / Mostrar interfaz (Tecla H)" class="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/70 text-violet-300 transition cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- BOTÓN FLOTANTE PARA RESTAURAR UI CUANDO ESTÁ EN MODO ZEN -->
+    <button id="btnExitZen" title="Mostrar controles (Tecla H)" class="fixed top-4 right-4 z-40 glass-panel px-3 py-2 rounded-xl text-xs font-mono-tech text-cyan-300 border border-cyan-500/40 hover:bg-slate-800/80 transition cursor-pointer hidden items-center gap-1.5">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+        <span>UI [H]</span>
+    </button>
+
+    <!-- BOTÓN TOGGLE PARA ABRIR/COLAPSAR PANEL DERECHO -->
+    <button id="btnToggleDrawer" title="Colapsar / Expandir parámetros" class="fixed top-20 right-4 z-30 glass-panel p-2.5 rounded-xl text-slate-200 hover:text-cyan-300 border border-slate-700/70 transition cursor-pointer ui-transition">
+        <svg id="iconDrawerToggle" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+        </svg>
+    </button>
+
+    <!-- PANEL LATERAL DERECHO FLOTANTE Y COLAPSABLE -->
+    <aside id="rightDrawer" class="fixed top-20 right-4 bottom-4 w-[340px] max-w-[calc(100vw-32px)] z-20 glass-panel rounded-2xl flex flex-col overflow-hidden ui-transition">
+        <!-- Cabecera interna del panel -->
+        <div class="px-4 py-3 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/40">
+            <div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#22d3ee]"></span>
+                    <span id="drawerSubtitle" class="text-[10px] font-mono-tech uppercase tracking-widest text-cyan-400">SISTEMA EMERGENTE</span>
+                </div>
+                <h2 id="drawerTitle" class="text-sm font-semibold text-slate-100 mt-0.5">Vida Artificial Asimétrica</h2>
+            </div>
+            <button id="btnCloseDrawer" class="p-1.5 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 transition cursor-pointer" title="Colapsar panel">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Telemetría en Tiempo Real -->
+        <div class="grid grid-cols-3 gap-2 px-4 py-2.5 bg-slate-950/60 border-b border-slate-800/80">
+            <div>
+                <div class="text-[9px] font-mono-tech text-slate-500">RENDIMIENTO</div>
+                <div id="teleFps" class="text-xs font-mono-tech font-semibold text-emerald-400 mt-0.5">60 FPS</div>
+            </div>
+            <div>
+                <div id="teleCountLabel" class="text-[9px] font-mono-tech text-slate-500">PARTÍCULAS</div>
+                <div id="teleCount" class="text-xs font-mono-tech font-semibold text-cyan-400 mt-0.5">1800</div>
+            </div>
+            <div>
+                <div id="teleOrderLabel" class="text-[9px] font-mono-tech text-slate-500">ORDEN / ENTROPÍA</div>
+                <div id="teleOrder" class="text-xs font-mono-tech font-semibold text-violet-400 mt-0.5">0.00</div>
+            </div>
+        </div>
+
+        <!-- Contenido Desplazable de Parámetros y Matriz -->
+        <div id="drawerBody" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- Se inyecta dinámicamente según el modo activo -->
+        </div>
+
+        <!-- Pie informativo de interacción directa -->
+        <div class="px-4 py-2.5 border-t border-slate-800/80 bg-slate-950/50 text-[10px] font-mono-tech text-slate-400 flex items-center justify-between">
+            <span id="pointerLegend">IZQ: Atraer / Inyectar</span>
+            <span>DER / SHIFT: Repeler</span>
+        </div>
+    </aside>
+
+    <!-- TOAST DE NOTIFICACIÓN RÁPIDA (CAPTURA PNG / CAMBIO DE PRESET) -->
+    <div id="toastBanner" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 glass-panel px-4 py-2 rounded-xl text-xs font-mono-tech text-cyan-300 border border-cyan-500/40 opacity-0 pointer-events-none transition-opacity duration-300">
+        Captura guardada
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * LABORATORIO DE SISTEMAS EMERGENTES (100vw x 100vh)
+         * Motor de alto rendimiento en JavaScript puro + TypedArrays + Spatial Hashing
+         *  - Modo 1: Vida Artificial (Particle Life Asimétrico)
+         *  - Modo 3: Inteligencia de Enjambre (Physarum Polycephalum + Boids)
+         * ============================================================================
+         */
+
+        // --- REFERENCIAS DOM ---
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const pointerCursor = document.getElementById('pointerCursor');
+
+        const topBar = document.getElementById('topBar');
+        const rightDrawer = document.getElementById('rightDrawer');
+        const drawerTitle = document.getElementById('drawerTitle');
+        const drawerSubtitle = document.getElementById('drawerSubtitle');
+        const drawerBody = document.getElementById('drawerBody');
+        const pointerLegend = document.getElementById('pointerLegend');
+
+        const teleFps = document.getElementById('teleFps');
+        const teleCountLabel = document.getElementById('teleCountLabel');
+        const teleCount = document.getElementById('teleCount');
+        const teleOrderLabel = document.getElementById('teleOrderLabel');
+        const teleOrder = document.getElementById('teleOrder');
+
+        const btnModeParticle = document.getElementById('btnModeParticle');
+        const btnModeSwarm = document.getElementById('btnModeSwarm');
+        const btnPlayPause = document.getElementById('btnPlayPause');
+        const iconPause = document.getElementById('iconPause');
+        const iconPlay = document.getElementById('iconPlay');
+        const btnReset = document.getElementById('btnReset');
+        const btnSnapshot = document.getElementById('btnSnapshot');
+        const btnZenMode = document.getElementById('btnZenMode');
+        const btnExitZen = document.getElementById('btnExitZen');
+        const btnToggleDrawer = document.getElementById('btnToggleDrawer');
+        const btnCloseDrawer = document.getElementById('btnCloseDrawer');
+        const toastBanner = document.getElementById('toastBanner');
+
+        // --- DIMENSIONES Y ESTADO GLOBAL ---
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        let isPaused = false;
+        let isDrawerOpen = true;
+        let isZenMode = false;
+        let currentMode = 'particle'; // 'particle' | 'swarm'
+
+        // Estado de interacción del puntero
+        const pointer = {
+            active: false,
+            x: width * 0.5,
+            y: height * 0.5,
+            isRepel: false,
+            radius: 140
+        };
+
+        // Medición de FPS
+        let frameCount = 0;
+        let lastFpsTime = performance.now();
+        let currentFps = 60;
+
+        function showToast(msg) {
+            toastBanner.textContent = msg;
+            toastBanner.classList.remove('opacity-0');
+            clearTimeout(showToast._timer);
+            showToast._timer = setTimeout(() => {
+                toastBanner.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        // ============================================================================
+        // MODO 1: VIDA ARTIFICIAL (PARTICLE LIFE ASIMÉTRICO)
+        // Optimizado con Spatial Hashing mediante listas enlazadas en TypedArrays
+        // ============================================================================
+        class ParticleLifeEngine {
+            constructor() {
+                this.speciesCount = 6;
+                this.colors = [
+                    '#22d3ee', // Cian eléctrico
+                    '#f43f5e', // Magenta / Carmesí
+                    '#fbbf24', // Ámbar neón
+                    '#34d399', // Esmeralda
+                    '#a78bfa', // Violeta
+                    '#38bdf8'  // Azul hielo
+                ];
+                this.rgbColors = [
+                    [34, 211, 238],
+                    [244, 63, 94],
+                    [251, 191, 36],
+                    [52, 211, 153],
+                    [167, 139, 250],
+                    [56, 189, 248]
+                ];
+
+                // Parámetros configurables
+                this.count = 1800;
+                this.radiusMax = 90;
+                this.friction = 0.85;
+                this.forceScale = 1.10;
+                this.trailFade = 0.24; // 0.05 (estela larga) -> 1.0 (sin estela)
+                this.toroidal = true;  // true: toroide infinito | false: bordes con rebote
+
+                // TypedArrays para alto rendimiento sin GC
+                this.px = new Float32Array(0);
+                this.py = new Float32Array(0);
+                this.vx = new Float32Array(0);
+                this.vy = new Float32Array(0);
+                this.species = new Uint8Array(0);
+
+                // Estructuras de Spatial Hashing (Rejilla Uniforme)
+                this.gridCols = 1;
+                this.gridRows = 1;
+                this.cellHead = new Int32Array(0);
+                this.particleNext = new Int32Array(0);
+
+                // Matriz NxN de interacción [-1.0 a +1.0]
+                this.matrix = Array.from({ length: this.speciesCount }, () =>
+                    new Float32Array(this.speciesCount)
+                );
+
+                this.applyPreset('symbiosis');
+            }
+
+            applyPreset(presetName) {
+                const n = this.speciesCount;
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < n; j++) {
+                        if (presetName === 'symbiosis') {
+                            // Núcleos cohesivos con envolturas protectoras
+                            if (i === j) this.matrix[i][j] = 0.65;
+                            else if ((i + 1) % n === j) this.matrix[i][j] = 0.35;
+                            else if ((i + 2) % n === j) this.matrix[i][j] = -0.35;
+                            else this.matrix[i][j] = -0.55;
+                        } else if (presetName === 'predator') {
+                            // Cadena trófica cíclica (persecución y huida)
+                            if (i === j) this.matrix[i][j] = 0.25;
+                            else if ((i + 1) % n === j) this.matrix[i][j] = 0.90;
+                            else if ((j + 1) % n === i) this.matrix[i][j] = -0.75;
+                            else this.matrix[i][j] = 0.0;
+                        } else if (presetName === 'crystals') {
+                            // Redes cristalinas simétricas con equilibrio de corto/largo alcance
+                            if (i === j) this.matrix[i][j] = -0.30;
+                            else if (Math.abs(i - j) === 1 || Math.abs(i - j) === n - 1) this.matrix[i][j] = 0.75;
+                            else this.matrix[i][j] = -0.45;
+                        } else if (presetName === 'snakes') {
+                            // Gusanos articulados autopropulsados
+                            if (i === j) this.matrix[i][j] = 0.55;
+                            else if ((i + 1) % n === j) this.matrix[i][j] = 0.80;
+                            else if ((j + 1) % n === i) this.matrix[i][j] = -0.40;
+                            else this.matrix[i][j] = -0.60;
+                        } else if (presetName === 'symmetric') {
+                            if (j >= i) {
+                                const v = Math.round((Math.random() * 2 - 1) * 4) / 4;
+                                this.matrix[i][j] = v;
+                                this.matrix[j][i] = v;
+                            }
+                        } else {
+                            // Aleatorio cuantizado en pasos de 0.25 para fácil edición
+                            this.matrix[i][j] = Math.round((Math.random() * 2 - 1) * 4) / 4;
+                        }
+                    }
+                }
+                this.updateMatrixUI();
+            }
+
+            init() {
+                const n = this.count;
+                this.px = new Float32Array(n);
+                this.py = new Float32Array(n);
+                this.vx = new Float32Array(n);
+                this.vy = new Float32Array(n);
+                this.species = new Uint8Array(n);
+                this.particleNext = new Int32Array(n);
+
+                // Distribución inicial orgánica en cúmulos suaves
+                const cx = width * 0.5;
+                const cy = height * 0.5;
+                const spread = Math.min(width, height) * 0.42;
+
+                for (let i = 0; i < n; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const rad = Math.sqrt(Math.random()) * spread;
+                    this.px[i] = (cx + Math.cos(angle) * rad + width) % width;
+                    this.py[i] = (cy + Math.sin(angle) * rad + height) % height;
+                    this.vx[i] = 0;
+                    this.vy[i] = 0;
+                    this.species[i] = i % this.speciesCount;
+                }
+
+                // Limpiar lienzo completamente al reiniciar
+                ctx.fillStyle = '#05070c';
+                ctx.fillRect(0, 0, width, height);
+            }
+
+            buildUI() {
+                drawerSubtitle.textContent = 'MODO 1 • DINÁMICA MOLECULAR';
+                drawerTitle.textContent = 'Vida Artificial (Particle Life)';
+                pointerLegend.textContent = 'IZQ: Vórtice Atractor';
+
+                drawerBody.innerHTML = `
+                    <!-- Presets Curados -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[10px] font-mono-tech uppercase tracking-wider text-slate-400">Presets Emergentes</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <button data-preset="symbiosis" class="pl-preset py-1.5 px-2.5 rounded-lg bg-slate-900/80 hover:bg-cyan-950/50 border border-slate-700/70 hover:border-cyan-500/50 text-[11px] text-cyan-300 transition cursor-pointer text-left">Simbiosis Celular</button>
+                            <button data-preset="predator" class="pl-preset py-1.5 px-2.5 rounded-lg bg-slate-900/80 hover:bg-rose-950/50 border border-slate-700/70 hover:border-rose-500/50 text-[11px] text-rose-300 transition cursor-pointer text-left">Depredador-Presa</button>
+                            <button data-preset="crystals" class="pl-preset py-1.5 px-2.5 rounded-lg bg-slate-900/80 hover:bg-emerald-950/50 border border-slate-700/70 hover:border-emerald-500/50 text-[11px] text-emerald-300 transition cursor-pointer text-left">Cristales Vivos</button>
+                            <button data-preset="snakes" class="pl-preset py-1.5 px-2.5 rounded-lg bg-slate-900/80 hover:bg-violet-950/50 border border-slate-700/70 hover:border-violet-500/50 text-[11px] text-violet-300 transition cursor-pointer text-left">Serpientes Cósmicas</button>
+                        </div>
+                    </div>
+
+                    <!-- Matriz de Interacción Asimétrica NxN -->
+                    <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800/80">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-mono-tech uppercase tracking-wider text-slate-300">Matriz Asimétrica (Clic = Ciclar)</span>
+                            <div class="flex gap-1">
+                                <button id="btnPlRandom" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-mono-tech text-cyan-300 border border-slate-700 cursor-pointer">Aleatoria</button>
+                                <button id="btnPlSym" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-mono-tech text-amber-300 border border-slate-700 cursor-pointer">Simétrica</button>
+                            </div>
+                        </div>
+                        <div id="plMatrixContainer" class="grid gap-1 justify-items-center items-center"></div>
+                        <div class="flex justify-between text-[9px] font-mono-tech text-slate-500 mt-2">
+                            <span class="text-rose-400">■ Repulsión (-1.0)</span>
+                            <span>0.0</span>
+                            <span class="text-emerald-400">■ Atracción (+1.0)</span>
+                        </div>
+                    </div>
+
+                    <!-- Controles Físicos -->
+                    <div class="space-y-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800/70">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Número de Partículas</span>
+                                <span id="valPlCount" class="font-mono-tech text-cyan-400">${this.count}</span>
+                            </div>
+                            <input type="range" id="inPlCount" min="600" max="3000" step="100" value="${this.count}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Radio de Interacción</span>
+                                <span id="valPlRadius" class="font-mono-tech text-cyan-400">${this.radiusMax} px</span>
+                            </div>
+                            <input type="range" id="inPlRadius" min="45" max="150" step="5" value="${this.radiusMax}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Fuerza Global</span>
+                                <span id="valPlForce" class="font-mono-tech text-cyan-400">${this.forceScale.toFixed(2)}</span>
+                            </div>
+                            <input type="range" id="inPlForce" min="0.2" max="2.5" step="0.05" value="${this.forceScale}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Fricción / Viscosidad</span>
+                                <span id="valPlFriction" class="font-mono-tech text-cyan-400">${((1 - this.friction) * 100).toFixed(0)}%</span>
+                            </div>
+                            <input type="range" id="inPlFriction" min="0.70" max="0.96" step="0.01" value="${this.friction}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Intensidad de Estela</span>
+                                <span id="valPlTrail" class="font-mono-tech text-cyan-400">${Math.round((1 - this.trailFade) * 100)}%</span>
+                            </div>
+                            <input type="range" id="inPlTrail" min="0.06" max="1.0" step="0.02" value="${1.06 - this.trailFade}">
+                        </div>
+
+                        <!-- Selector de Topología -->
+                        <div class="pt-1 flex items-center justify-between">
+                            <span class="text-xs text-slate-300">Topología del Espacio</span>
+                            <button id="btnPlTopology" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-mono-tech text-cyan-300 cursor-pointer">
+                                ${this.toroidal ? 'Toroide Infinito' : 'Bordes Rebote'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                this.updateMatrixUI();
+
+                // Eventos de Presets
+                drawerBody.querySelectorAll('.pl-preset').forEach(btn => {
+                    btn.onclick = () => {
+                        this.applyPreset(btn.dataset.preset);
+                        showToast(`Preset: ${btn.textContent}`);
+                    };
+                });
+
+                document.getElementById('btnPlRandom').onclick = () => this.applyPreset('random');
+                document.getElementById('btnPlSym').onclick = () => this.applyPreset('symmetric');
+
+                // Eventos de Sliders
+                document.getElementById('inPlCount').oninput = (e) => {
+                    document.getElementById('valPlCount').textContent = e.target.value;
+                };
+                document.getElementById('inPlCount').onchange = (e) => {
+                    this.count = parseInt(e.target.value, 10);
+                    this.init();
+                };
+
+                document.getElementById('inPlRadius').oninput = (e) => {
+                    this.radiusMax = parseInt(e.target.value, 10);
+                    document.getElementById('valPlRadius').textContent = `${this.radiusMax} px`;
+                };
+
+                document.getElementById('inPlForce').oninput = (e) => {
+                    this.forceScale = parseFloat(e.target.value);
+                    document.getElementById('valPlForce').textContent = this.forceScale.toFixed(2);
+                };
+
+                document.getElementById('inPlFriction').oninput = (e) => {
+                    this.friction = parseFloat(e.target.value);
+                    document.getElementById('valPlFriction').textContent = `${((1 - this.friction) * 100).toFixed(0)}%`;
+                };
+
+                document.getElementById('inPlTrail').oninput = (e) => {
+                    const sliderVal = parseFloat(e.target.value);
+                    this.trailFade = Math.max(0.06, Math.min(1.0, 1.06 - sliderVal));
+                    document.getElementById('valPlTrail').textContent = `${Math.round((1 - this.trailFade) * 100)}%`;
+                };
+
+                document.getElementById('btnPlTopology').onclick = (e) => {
+                    this.toroidal = !this.toroidal;
+                    e.target.textContent = this.toroidal ? 'Toroide Infinito' : 'Bordes Rebote';
+                };
+            }
+
+            updateMatrixUI() {
+                const container = document.getElementById('plMatrixContainer');
+                if (!container) return;
+
+                const n = this.speciesCount;
+                container.style.gridTemplateColumns = `repeat(${n + 1}, minmax(0, 1fr))`;
+
+                let html = `<div class="w-5 h-5"></div>`;
+                for (let j = 0; j < n; j++) {
+                    html += `<div class="w-4 h-4 rounded-full shadow-sm" style="background:${this.colors[j]}; box-shadow: 0 0 8px ${this.colors[j]}80;"></div>`;
+                }
+
+                for (let i = 0; i < n; i++) {
+                    html += `<div class="w-4 h-4 rounded-full shadow-sm" style="background:${this.colors[i]}; box-shadow: 0 0 8px ${this.colors[i]}80;"></div>`;
+                    for (let j = 0; j < n; j++) {
+                        const val = this.matrix[i][j];
+                        let bg = 'rgba(30, 41, 59, 0.7)';
+                        if (val > 0.05) {
+                            bg = `rgba(16, 185, 129, ${0.25 + val * 0.75})`;
+                        } else if (val < -0.05) {
+                            bg = `rgba(244, 63, 94, ${0.25 + Math.abs(val) * 0.75})`;
+                        }
+                        html += `
+                            <button data-i="${i}" data-j="${j}" title="F(${i}→${j}) = ${val.toFixed(2)} (Clic para ciclar)"
+                                class="pl-cell w-full h-6 rounded text-[9px] font-mono-tech font-semibold text-white/90 border border-white/10 hover:scale-110 transition cursor-pointer flex items-center justify-center"
+                                style="background:${bg}">
+                                ${val === 0 ? '0' : (val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1))}
+                            </button>
+                        `;
+                    }
+                }
+                container.innerHTML = html;
+
+                container.querySelectorAll('.pl-cell').forEach(cell => {
+                    cell.onclick = () => {
+                        const i = parseInt(cell.dataset.i, 10);
+                        const j = parseInt(cell.dataset.j, 10);
+                        // Ciclar valor en pasos de +0.25 desde -1.0 hasta +1.0
+                        let next = this.matrix[i][j] + 0.25;
+                        if (next > 1.01) next = -1.0;
+                        this.matrix[i][j] = Math.round(next * 100) / 100;
+                        this.updateMatrixUI();
+                    };
+                });
+            }
+
+            step() {
+                const n = this.count;
+                const rMax = this.radiusMax;
+                const rMaxSq = rMax * rMax;
+                const beta = 0.30; // Núcleo de repulsión de corto alcance
+                const invBeta = 1.0 / beta;
+                const invOneMinusBeta = 1.0 / (1.0 - beta);
+
+                // 1. Reconstruir Spatial Hash Grid (Zero-allocation mediante listas enlazadas en TypedArrays)
+                const cellSize = rMax;
+                const cols = Math.max(1, Math.ceil(width / cellSize));
+                const rows = Math.max(1, Math.ceil(height / cellSize));
+                const totalCells = cols * rows;
+
+                if (this.cellHead.length < totalCells) {
+                    this.cellHead = new Int32Array(totalCells);
+                }
+                this.cellHead.fill(-1, 0, totalCells);
+
+                const px = this.px;
+                const py = this.py;
+                const vx = this.vx;
+                const vy = this.vy;
+                const species = this.species;
+                const nextArr = this.particleNext;
+                const headArr = this.cellHead;
+
+                for (let i = 0; i < n; i++) {
+                    let gx = (px[i] / cellSize) | 0;
+                    let gy = (py[i] / cellSize) | 0;
+                    if (gx < 0) gx = 0; else if (gx >= cols) gx = cols - 1;
+                    if (gy < 0) gy = 0; else if (gy >= rows) gy = rows - 1;
+                    const cellIdx = gy * cols + gx;
+                    nextArr[i] = headArr[cellIdx];
+                    headArr[cellIdx] = i;
+                }
+
+                const halfW = width * 0.5;
+                const halfH = height * 0.5;
+                const isTorus = this.toroidal;
+                const fScale = this.forceScale * 0.48;
+                const fric = this.friction;
+                const ptrActive = pointer.active;
+                const ptrX = pointer.x;
+                const ptrY = pointer.y;
+                const ptrSign = pointer.isRepel ? -3.2 : 2.1;
+                const ptrRadSq = pointer.radius * pointer.radius;
+
+                // 2. Calcular fuerzas acumuladas por partícula consultando solo celdas vecinas (3x3)
+                for (let i = 0; i < n; i++) {
+                    const x1 = px[i];
+                    const y1 = py[i];
+                    const sp1 = species[i];
+                    const rowMatrix = this.matrix[sp1];
+
+                    let fx = 0;
+                    let fy = 0;
+
+                    let gx = (x1 / cellSize) | 0;
+                    let gy = (y1 / cellSize) | 0;
+                    if (gx < 0) gx = 0; else if (gx >= cols) gx = cols - 1;
+                    if (gy < 0) gy = 0; else if (gy >= rows) gy = rows - 1;
+
+                    for (let dyCell = -1; dyCell <= 1; dyCell++) {
+                        let ny = gy + dyCell;
+                        if (ny < 0) {
+                            if (!isTorus) continue;
+                            ny += rows;
+                        } else if (ny >= rows) {
+                            if (!isTorus) continue;
+                            ny -= rows;
+                        }
+                        const rowOffset = ny * cols;
+
+                        for (let dxCell = -1; dxCell <= 1; dxCell++) {
+                            let nx = gx + dxCell;
+                            if (nx < 0) {
+                                if (!isTorus) continue;
+                                nx += cols;
+                            } else if (nx >= cols) {
+                                if (!isTorus) continue;
+                                nx -= cols;
+                            }
+
+                            let j = headArr[rowOffset + nx];
+                            while (j !== -1) {
+                                if (i !== j) {
+                                    let dx = px[j] - x1;
+                                    let dy = py[j] - y1;
+
+                                    if (isTorus) {
+                                        if (dx > halfW) dx -= width;
+                                        else if (dx < -halfW) dx += width;
+                                        if (dy > halfH) dy -= height;
+                                        else if (dy < -halfH) dy += height;
+                                    }
+
+                                    const distSq = dx * dx + dy * dy;
+                                    if (distSq > 0.01 && distSq < rMaxSq) {
+                                        const dist = Math.sqrt(distSq);
+                                        const rNorm = dist / rMax;
+                                        let f = 0;
+
+                                        if (rNorm < beta) {
+                                            // Repulsión nuclear universal
+                                            f = rNorm * invBeta - 1.0;
+                                        } else {
+                                            // Fuerza asimétrica según especie
+                                            const attract = rowMatrix[species[j]];
+                                            f = attract * (1.0 - Math.abs(2.0 * rNorm - 1.0 - beta) * invOneMinusBeta);
+                                        }
+
+                                        const invDist = f / dist;
+                                        fx += dx * invDist;
+                                        fy += dy * invDist;
+                                    }
+                                }
+                                j = nextArr[j];
+                            }
+                        }
+                    }
+
+                    // Interacción con el puntero
+                    if (ptrActive) {
+                        const dx = ptrX - x1;
+                        const dy = ptrY - y1;
+                        const dSq = dx * dx + dy * dy;
+                        if (dSq < ptrRadSq && dSq > 4) {
+                            const d = Math.sqrt(dSq);
+                            fx += (dx / d) * ptrSign;
+                            fy += (dy / d) * ptrSign;
+                        }
+                    }
+
+                    vx[i] = (vx[i] + fx * fScale) * fric;
+                    vy[i] = (vy[i] + fy * fScale) * fric;
+                }
+
+                // 3. Integración de posición y condiciones de contorno
+                for (let i = 0; i < n; i++) {
+                    let nx = px[i] + vx[i];
+                    let ny = py[i] + vy[i];
+
+                    if (isTorus) {
+                        if (nx < 0) nx += width;
+                        else if (nx >= width) nx -= width;
+                        if (ny < 0) ny += height;
+                        else if (ny >= height) ny -= height;
+                    } else {
+                        const margin = 4;
+                        if (nx < margin) { nx = margin; vx[i] *= -0.7; }
+                        else if (nx > width - margin) { nx = width - margin; vx[i] *= -0.7; }
+                        if (ny < margin) { ny = margin; vy[i] *= -0.7; }
+                        else if (ny > height - margin) { ny = height - margin; vy[i] *= -0.7; }
+                    }
+
+                    px[i] = nx;
+                    py[i] = ny;
+                }
+            }
+
+            draw() {
+                // Efecto de estela (motion blur controlado)
+                ctx.fillStyle = `rgba(5, 7, 12, ${this.trailFade})`;
+                ctx.fillRect(0, 0, width, height);
+
+                const n = this.count;
+                const px = this.px;
+                const py = this.py;
+                const species = this.species;
+
+                // Agrupar el renderizado por especie para minimizar cambios de estado en Canvas
+                for (let s = 0; s < this.speciesCount; s++) {
+                    ctx.fillStyle = this.colors[s];
+                    ctx.beginPath();
+                    for (let i = 0; i < n; i++) {
+                        if (species[i] === s) {
+                            const x = px[i];
+                            const y = py[i];
+                            ctx.moveTo(x + 2.3, y);
+                            ctx.arc(x, y, 2.3, 0, Math.PI * 2);
+                        }
+                    }
+                    ctx.fill();
+                }
+            }
+
+            getTelemetry() {
+                // Calcular entropía cinética y cohesión espacial
+                let speedSum = 0;
+                const step = 4;
+                let samples = 0;
+                for (let i = 0; i < this.count; i += step) {
+                    speedSum += Math.hypot(this.vx[i], this.vy[i]);
+                    samples++;
+                }
+                const avgSpeed = speedSum / (samples || 1);
+                const entropy = Math.min(7.99, 2.1 + Math.log2(1 + avgSpeed * 4.2));
+                return {
+                    countLabel: 'PARTÍCULAS',
+                    count: this.count,
+                    orderLabel: 'ENTROPÍA CINÉTICA',
+                    order: `${entropy.toFixed(2)} bit`
+                };
+            }
+        }
+
+        // ============================================================================
+        // MODO 3: INTELIGENCIA DE ENJAMBRE (PHYSARUM POLYCEPHALUM + BOIDS)
+        // Simulación híbrida con TypedArrays y múltiples colonias bioluminiscentes
+        // ============================================================================
+        class SwarmPhysarumEngine {
+            constructor() {
+                this.agentCount = 5000;
+                this.colonies = 2; // 1, 2 o 3 colonias independientes
+                this.sensorAngle = 0.52; // Radianes (~30°)
+                this.sensorDist = 20;
+                this.turnAngle = 0.42;
+                this.speed = 1.9;
+                this.evaporation = 0.94;
+                this.boidWeight = 0.25; // Influencia de alineación/cohesión Boids
+                this.paletteKey = 'biolum';
+
+                // Paletas bioluminiscentes por colonia (R, G, B)
+                this.palettes = {
+                    biolum: {
+                        name: 'Cian & Esmeralda',
+                        cols: [
+                            [20, 225, 245],  // Cian Eléctrico
+                            [45, 240, 155],  // Bio-Esmeralda
+                            [165, 110, 255]  // Ultravioleta
+                        ]
+                    },
+                    magma: {
+                        name: 'Magma & Oro',
+                        cols: [
+                            [255, 185, 35],  // Oro Líquido
+                            [255, 65, 95],   // Magma Carmesí
+                            [190, 90, 255]   // Violeta Plasma
+                        ]
+                    },
+                    cyber: {
+                        name: 'Ultravioleta Neón',
+                        cols: [
+                            [180, 95, 255],  // Ultravioleta
+                            [34, 211, 238],  // Cian
+                            [251, 191, 36]   // Ámbar
+                        ]
+                    }
+                };
+
+                // TypedArrays para agentes
+                this.ax = new Float32Array(0);
+                this.ay = new Float32Array(0);
+                this.aAngle = new Float32Array(0);
+                this.aColony = new Uint8Array(0);
+
+                // Mapa de feromonas de alta resolución (3 canales químicos, 1 por colonia)
+                this.mapW = 360;
+                this.mapH = 220;
+                this.trailA = new Float32Array(this.mapW * this.mapH);
+                this.trailB = new Float32Array(this.mapW * this.mapH);
+                this.trailC = new Float32Array(this.mapW * this.mapH);
+                this.tempBuf = new Float32Array(this.mapW * this.mapH);
+
+                // Rejilla espacial rápida para alineación Boid local
+                this.boidGridCols = 32;
+                this.boidGridRows = 20;
+                this.boidSumCos = new Float32Array(this.boidGridCols * this.boidGridRows);
+                this.boidSumSin = new Float32Array(this.boidGridCols * this.boidGridRows);
+                this.boidCount = new Uint16Array(this.boidGridCols * this.boidGridRows);
+
+                // Offscreen Canvas para renderizado ultrarrápido de píxeles
+                this.offCanvas = document.createElement('canvas');
+                this.offCanvas.width = this.mapW;
+                this.offCanvas.height = this.mapH;
+                this.offCtx = this.offCanvas.getContext('2d');
+                this.imgData = this.offCtx.createImageData(this.mapW, this.mapH);
+
+                this.applyPreset('vascular');
+            }
+
+            applyPreset(preset) {
+                if (preset === 'vascular') {
+                    this.sensorAngle = 0.52;
+                    this.sensorDist = 22;
+                    this.turnAngle = 0.42;
+                    this.speed = 1.9;
+                    this.evaporation = 0.94;
+                    this.boidWeight = 0.20;
+                } else if (preset === 'mycelium') {
+                    this.sensorAngle = 0.78;
+                    this.sensorDist = 14;
+                    this.turnAngle = 0.65;
+                    this.speed = 1.4;
+                    this.evaporation = 0.96;
+                    this.boidWeight = 0.08;
+                } else if (preset === 'highways') {
+                    this.sensorAngle = 0.32;
+                    this.sensorDist = 30;
+                    this.turnAngle = 0.28;
+                    this.speed = 2.4;
+                    this.evaporation = 0.92;
+                    this.boidWeight = 0.45;
+                } else if (preset === 'currents') {
+                    this.sensorAngle = 0.45;
+                    this.sensorDist = 26;
+                    this.turnAngle = 0.22;
+                    this.speed = 2.2;
+                    this.evaporation = 0.95;
+                    this.boidWeight = 0.75;
+                }
+                this.syncUI();
+            }
+
+            syncUI() {
+                const map = {
+                    inSwAngle: [this.sensorAngle, `${Math.round(this.sensorAngle * 57.2958)}°`],
+                    inSwDist: [this.sensorDist, `${this.sensorDist} px`],
+                    inSwTurn: [this.turnAngle, `${Math.round(this.turnAngle * 57.2958)}°`],
+                    inSwSpeed: [this.speed, `${this.speed.toFixed(1)}`],
+                    inSwEvap: [this.evaporation, `${(this.evaporation * 100).toFixed(0)}%`],
+                    inSwBoid: [this.boidWeight, `${Math.round(this.boidWeight * 100)}%`]
+                };
+                for (const [id, [val, label]] of Object.entries(map)) {
+                    const el = document.getElementById(id);
+                    const lbl = document.getElementById(id.replace('in', 'val'));
+                    if (el) el.value = val;
+                    if (lbl) lbl.textContent = label;
+                }
+            }
+
+            init() {
+                // Ajustar resolución proporcional del mapa de feromonas
+                const aspect = width / height;
+                this.mapH = 260;
+                this.mapW = Math.max(200, Math.round(this.mapH * aspect));
+                const mapLen = this.mapW * this.mapH;
+
+                this.trailA = new Float32Array(mapLen);
+                this.trailB = new Float32Array(mapLen);
+                this.trailC = new Float32Array(mapLen);
+                this.tempBuf = new Float32Array(mapLen);
+
+                this.offCanvas.width = this.mapW;
+                this.offCanvas.height = this.mapH;
+                this.imgData = this.offCtx.createImageData(this.mapW, this.mapH);
+
+                // Inicializar agentes
+                const n = this.agentCount;
+                this.ax = new Float32Array(n);
+                this.ay = new Float32Array(n);
+                this.aAngle = new Float32Array(n);
+                this.aColony = new Uint8Array(n);
+
+                const cx = width * 0.5;
+                const cy = height * 0.5;
+                const maxR = Math.min(width, height) * 0.38;
+
+                for (let i = 0; i < n; i++) {
+                    const colony = i % this.colonies;
+                    this.aColony[i] = colony;
+
+                    // Sembrar en anillo o cúmulos por colonia para que formen puentes vasculares
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = (0.15 + Math.random() * 0.85) * maxR;
+                    this.ax[i] = (cx + Math.cos(angle) * r + width) % width;
+                    this.ay[i] = (cy + Math.sin(angle) * r + height) % height;
+                    this.aAngle[i] = angle + Math.PI + (Math.random() - 0.5) * 0.6;
+                }
+            }
+
+            buildUI() {
+                drawerSubtitle.textContent = 'MODO 3 • QUIMIOTAXIS & FLOCKING';
+                drawerTitle.textContent = 'Enjambre (Physarum + Boids)';
+                pointerLegend.textContent = 'IZQ: Sembrar Feromona';
+
+                drawerBody.innerHTML = `
+                    <!-- Presets Emergentes -->
+                    <div>
+                        <span class="block text-[10px] font-mono-tech uppercase tracking-wider text-slate-400 mb-1.5">Presets de Enjambre</span>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <button data-preset="vascular" class="sw-preset py-1.5 px-2.5 rounded-lg bg-slate-900/80 hover:bg-cyan-950/50 border border-slate-700/70 hover:border-cyan-500/50 text-[11px] text-cyan-300 transition cursor-pointer text-left">Red Vascular</button>
+                            <button data-preset="mycelium" class="sw-preset py-1.5 px-2.5 rounded-lg bg-slate-900/80 hover:bg-emerald-950/50 border border-slate-700/70 hover:border-emerald-500/50 text-[11px] text-emerald-300 transition cursor-pointer text-left">Micelio Fúngico</button>
+                            <button data-preset="highways" class="sw-preset py-1.5 px-2.5 rounded-lg bg-slate-900/80 hover:bg-amber-950/50 border border-slate-700/70 hover:border-amber-500/50 text-[11px] text-amber-300 transition cursor-pointer text-left">Autopistas Hormigas</button>
+                            <button data-preset="currents" class="sw-preset py-1.5 px-2.5 rounded-lg bg-slate-900/80 hover:bg-violet-950/50 border border-slate-700/70 hover:border-violet-500/50 text-[11px] text-violet-300 transition cursor-pointer text-left">Corrientes Oceánicas</button>
+                        </div>
+                    </div>
+
+                    <!-- Colonias y Paleta Bioluminiscente -->
+                    <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800/80 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-300">Colonias Competitivas</span>
+                            <div class="flex gap-1">
+                                <button data-col="1" class="sw-col-btn px-2.5 py-1 rounded text-[11px] font-mono-tech border cursor-pointer ${this.colonies === 1 ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300' : 'bg-slate-900 border-slate-700 text-slate-400'}">1</button>
+                                <button data-col="2" class="sw-col-btn px-2.5 py-1 rounded text-[11px] font-mono-tech border cursor-pointer ${this.colonies === 2 ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300' : 'bg-slate-900 border-slate-700 text-slate-400'}">2</button>
+                                <button data-col="3" class="sw-col-btn px-2.5 py-1 rounded text-[11px] font-mono-tech border cursor-pointer ${this.colonies === 3 ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300' : 'bg-slate-900 border-slate-700 text-slate-400'}">3</button>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-300">Paleta Espectral</span>
+                            <select id="selSwPalette" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono-tech text-cyan-300 focus:outline-none cursor-pointer">
+                                <option value="biolum" ${this.paletteKey === 'biolum' ? 'selected' : ''}>Cian & Esmeralda</option>
+                                <option value="magma" ${this.paletteKey === 'magma' ? 'selected' : ''}>Magma & Oro</option>
+                                <option value="cyber" ${this.paletteKey === 'cyber' ? 'selected' : ''}>Ultravioleta Neón</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Parámetros Sensoriales Physarum + Boids -->
+                    <div class="space-y-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800/70">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Cantidad de Agentes</span>
+                                <span id="valSwCount" class="font-mono-tech text-cyan-400">${this.agentCount}</span>
+                            </div>
+                            <input type="range" id="inSwCount" min="2000" max="8000" step="500" value="${this.agentCount}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Ángulo de Sensores</span>
+                                <span id="valSwAngle" class="font-mono-tech text-cyan-400">${Math.round(this.sensorAngle * 57.2958)}°</span>
+                            </div>
+                            <input type="range" id="inSwAngle" min="0.15" max="1.35" step="0.03" value="${this.sensorAngle}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Distancia de Sensores</span>
+                                <span id="valSwDist" class="font-mono-tech text-cyan-400">${this.sensorDist} px</span>
+                            </div>
+                            <input type="range" id="inSwDist" min="6" max="42" step="1" value="${this.sensorDist}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Ángulo de Giro</span>
+                                <span id="valSwTurn" class="font-mono-tech text-cyan-400">${Math.round(this.turnAngle * 57.2958)}°</span>
+                            </div>
+                            <input type="range" id="inSwTurn" min="0.10" max="1.10" step="0.02" value="${this.turnAngle}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Velocidad de Agentes</span>
+                                <span id="valSwSpeed" class="font-mono-tech text-cyan-400">${this.speed.toFixed(1)}</span>
+                            </div>
+                            <input type="range" id="inSwSpeed" min="0.6" max="3.6" step="0.1" value="${this.speed}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Persistencia Feromona</span>
+                                <span id="valSwEvap" class="font-mono-tech text-cyan-400">${(this.evaporation * 100).toFixed(0)}%</span>
+                            </div>
+                            <input type="range" id="inSwEvap" min="0.86" max="0.98" step="0.01" value="${this.evaporation}">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Influencia Boids (Alineación)</span>
+                                <span id="valSwBoid" class="font-mono-tech text-cyan-400">${Math.round(this.boidWeight * 100)}%</span>
+                            </div>
+                            <input type="range" id="inSwBoid" min="0.0" max="1.0" step="0.05" value="${this.boidWeight}">
+                        </div>
+                    </div>
+                `;
+
+                // Eventos de Presets
+                drawerBody.querySelectorAll('.sw-preset').forEach(btn => {
+                    btn.onclick = () => {
+                        this.applyPreset(btn.dataset.preset);
+                        showToast(`Preset: ${btn.textContent}`);
+                    };
+                });
+
+                // Eventos de Colonias
+                drawerBody.querySelectorAll('.sw-col-btn').forEach(btn => {
+                    btn.onclick = () => {
+                        this.colonies = parseInt(btn.dataset.col, 10);
+                        this.buildUI();
+                        this.init();
+                    };
+                });
+
+                document.getElementById('selSwPalette').onchange = (e) => {
+                    this.paletteKey = e.target.value;
+                };
+
+                // Eventos de Sliders
+                document.getElementById('inSwCount').oninput = (e) => {
+                    document.getElementById('valSwCount').textContent = e.target.value;
+                };
+                document.getElementById('inSwCount').onchange = (e) => {
+                    this.agentCount = parseInt(e.target.value, 10);
+                    this.init();
+                };
+
+                document.getElementById('inSwAngle').oninput = (e) => {
+                    this.sensorAngle = parseFloat(e.target.value);
+                    document.getElementById('valSwAngle').textContent = `${Math.round(this.sensorAngle * 57.2958)}°`;
+                };
+
+                document.getElementById('inSwDist').oninput = (e) => {
+                    this.sensorDist = parseInt(e.target.value, 10);
+                    document.getElementById('valSwDist').textContent = `${this.sensorDist} px`;
+                };
+
+                document.getElementById('inSwTurn').oninput = (e) => {
+                    this.turnAngle = parseFloat(e.target.value);
+                    document.getElementById('valSwTurn').textContent = `${Math.round(this.turnAngle * 57.2958)}°`;
+                };
+
+                document.getElementById('inSwSpeed').oninput = (e) => {
+                    this.speed = parseFloat(e.target.value);
+                    document.getElementById('valSwSpeed').textContent = this.speed.toFixed(1);
+                };
+
+                document.getElementById('inSwEvap').oninput = (e) => {
+                    this.evaporation = parseFloat(e.target.value);
+                    document.getElementById('valSwEvap').textContent = `${(this.evaporation * 100).toFixed(0)}%`;
+                };
+
+                document.getElementById('inSwBoid').oninput = (e) => {
+                    this.boidWeight = parseFloat(e.target.value);
+                    document.getElementById('valSwBoid').textContent = `${Math.round(this.boidWeight * 100)}%`;
+                };
+            }
+
+            diffuseAndEvaporate(channel) {
+                const w = this.mapW;
+                const h = this.mapH;
+                const evap = this.evaporation;
+                const dst = this.tempBuf;
+
+                // Filtro de difusión 3x3 ponderado + evaporación
+                for (let y = 0; y < h; y++) {
+                    const yU = (y === 0 ? h - 1 : y - 1) * w;
+                    const yD = (y === h - 1 ? 0 : y + 1) * w;
+                    const yC = y * w;
+
+                    for (let x = 0; x < w; x++) {
+                        const xL = x === 0 ? w - 1 : x - 1;
+                        const xR = x === w - 1 ? 0 : x + 1;
+
+                        const sum =
+                            channel[yU + xL] + channel[yU + x] + channel[yU + xR] +
+                            channel[yC + xL] + channel[yC + x] + channel[yC + xR] +
+                            channel[yD + xL] + channel[yD + x] + channel[yD + xR];
+
+                        dst[yC + x] = (sum * 0.1111111) * evap;
+                    }
+                }
+                channel.set(dst);
+            }
+
+            step() {
+                const n = this.agentCount;
+                const mw = this.mapW;
+                const mh = this.mapH;
+                const scaleX = mw / width;
+                const scaleY = mh / height;
+
+                const ax = this.ax;
+                const ay = this.ay;
+                const aAngle = this.aAngle;
+                const aColony = this.aColony;
+
+                const tA = this.trailA;
+                const tB = this.trailB;
+                const tC = this.trailC;
+                const numCol = this.colonies;
+
+                // 0. Interacción directa del puntero en el mapa químico
+                if (pointer.active) {
+                    const mx = (pointer.x * scaleX) | 0;
+                    const my = (pointer.y * scaleY) | 0;
+                    const rad = Math.max(3, Math.round((pointer.radius * 0.35) * scaleX));
+                    const radSq = rad * rad;
+
+                    for (let dy = -rad; dy <= rad; dy++) {
+                        for (let dx = -rad; dx <= rad; dx++) {
+                            if (dx * dx + dy * dy <= radSq) {
+                                const tx = ((mx + dx) % mw + mw) % mw;
+                                const ty = ((my + dy) % mh + mh) % mh;
+                                const idx = ty * mw + tx;
+                                if (pointer.isRepel) {
+                                    // Repeler: borra feromonas y dispersa
+                                    tA[idx] = 0;
+                                    tB[idx] = 0;
+                                    tC[idx] = 0;
+                                } else {
+                                    // Inyectar feromona atractiva
+                                    tA[idx] = 1.0;
+                                    if (numCol >= 2) tB[idx] = 1.0;
+                                    if (numCol >= 3) tC[idx] = 1.0;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 1. Acumular campo de orientación Boid en rejilla gruesa para alineación O(N)
+                const useBoids = this.boidWeight > 0.01;
+                const bCols = this.boidGridCols;
+                const bRows = this.boidGridRows;
+                const bCellW = width / bCols;
+                const bCellH = height / bRows;
+
+                if (useBoids) {
+                    this.boidSumCos.fill(0);
+                    this.boidSumSin.fill(0);
+                    this.boidCount.fill(0);
+
+                    for (let i = 0; i < n; i++) {
+                        let bx = (ax[i] / bCellW) | 0;
+                        let by = (ay[i] / bCellH) | 0;
+                        if (bx >= bCols) bx = bCols - 1;
+                        if (by >= bRows) by = bRows - 1;
+                        const bIdx = by * bCols + bx;
+                        const ang = aAngle[i];
+                        this.boidSumCos[bIdx] += Math.cos(ang);
+                        this.boidSumSin[bIdx] += Math.sin(ang);
+                        this.boidCount[bIdx]++;
+                    }
+                }
+
+                // 2. Sensado Physarum (3 sensores frontales) + Alineación Boid + Movimiento
+                const sAng = this.sensorAngle;
+                const sDist = this.sensorDist;
+                const turn = this.turnAngle;
+                const spd = this.speed;
+                const bWeight = this.boidWeight * 0.16;
+
+                for (let i = 0; i < n; i++) {
+                    const x = ax[i];
+                    const y = ay[i];
+                    let ang = aAngle[i];
+                    const col = aColony[i];
+
+                    // Seleccionar canal propio y repulsión suave de colonias rivales
+                    const ownMap = col === 0 ? tA : (col === 1 ? tB : tC);
+                    const rivalMap1 = numCol > 1 ? (col === 0 ? tB : tA) : null;
+                    const rivalMap2 = numCol > 2 ? (col === 2 ? tB : tC) : null;
+
+                    // Coordenadas de los 3 sensores frontales
+                    const angL = ang - sAng;
+                    const angR = ang + sAng;
+
+                    let sxL = (((x + Math.cos(angL) * sDist) * scaleX) | 0) % mw;
+                    let syL = (((y + Math.sin(angL) * sDist) * scaleY) | 0) % mh;
+                    if (sxL < 0) sxL += mw;
+                    if (syL < 0) syL += mh;
+
+                    let sxC = (((x + Math.cos(ang) * sDist) * scaleX) | 0) % mw;
+                    let syC = (((y + Math.sin(ang) * sDist) * scaleY) | 0) % mh;
+                    if (sxC < 0) sxC += mw;
+                    if (syC < 0) syC += mh;
+
+                    let sxR = (((x + Math.cos(angR) * sDist) * scaleX) | 0) % mw;
+                    let syR = (((y + Math.sin(angR) * sDist) * scaleY) | 0) % mh;
+                    if (sxR < 0) sxR += mw;
+                    if (syR < 0) syR += mh;
+
+                    const idxL = syL * mw + sxL;
+                    const idxC = syC * mw + sxC;
+                    const idxR = syR * mw + sxR;
+
+                    // Lectura química neta (atracción propia - competencia rival)
+                    let fL = ownMap[idxL];
+                    let fC = ownMap[idxC];
+                    let fR = ownMap[idxR];
+
+                    if (rivalMap1) {
+                        fL -= rivalMap1[idxL] * 0.45;
+                        fC -= rivalMap1[idxC] * 0.45;
+                        fR -= rivalMap1[idxR] * 0.45;
+                    }
+                    if (rivalMap2) {
+                        fL -= rivalMap2[idxL] * 0.45;
+                        fC -= rivalMap2[idxC] * 0.45;
+                        fR -= rivalMap2[idxR] * 0.45;
+                    }
+
+                    // Regla clásica de giro Physarum
+                    if (fC > fL && fC > fR) {
+                        // Seguir recto
+                    } else if (fC < fL && fC < fR) {
+                        ang += (Math.random() < 0.5 ? -turn : turn);
+                    } else if (fR > fL) {
+                        ang += turn;
+                    } else if (fL > fR) {
+                        ang -= turn;
+                    }
+
+                    // Regla Boids: Alineación con el flujo local de la celda
+                    if (useBoids) {
+                        let bx = (x / bCellW) | 0;
+                        let by = (y / bCellH) | 0;
+                        if (bx >= bCols) bx = bCols - 1;
+                        if (by >= bRows) by = bRows - 1;
+                        const bIdx = by * bCols + bx;
+                        if (this.boidCount[bIdx] > 1) {
+                            const avgAng = Math.atan2(this.boidSumSin[bIdx], this.boidSumCos[bIdx]);
+                            const diff = Math.atan2(Math.sin(avgAng - ang), Math.cos(avgAng - ang));
+                            ang += diff * bWeight;
+                        }
+                    }
+
+                    // Repulsión directa del puntero sobre agentes cercanos
+                    if (pointer.active && pointer.isRepel) {
+                        const dx = x - pointer.x;
+                        const dy = y - pointer.y;
+                        if (dx * dx + dy * dy < pointer.radius * pointer.radius) {
+                            ang = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.4;
+                        }
+                    }
+
+                    // Avanzar agente en espacio toroidal
+                    let nx = x + Math.cos(ang) * spd;
+                    let ny = y + Math.sin(ang) * spd;
+                    if (nx < 0) nx += width; else if (nx >= width) nx -= width;
+                    if (ny < 0) ny += height; else if (ny >= height) ny -= height;
+
+                    ax[i] = nx;
+                    ay[i] = ny;
+                    aAngle[i] = ang;
+
+                    // Depositar rastro químico en su canal
+                    const tx = (nx * scaleX) | 0;
+                    const ty = (ny * scaleY) | 0;
+                    const mapIdx = ty * mw + tx;
+                    ownMap[mapIdx] = Math.min(1.0, ownMap[mapIdx] + 0.34);
+                }
+
+                // 3. Difusión y evaporación de canales activos
+                this.diffuseAndEvaporate(tA);
+                if (numCol >= 2) this.diffuseAndEvaporate(tB);
+                if (numCol >= 3) this.diffuseAndEvaporate(tC);
+            }
+
+            draw() {
+                const data = this.imgData.data;
+                const len = this.mapW * this.mapH;
+                const tA = this.trailA;
+                const tB = this.trailB;
+                const tC = this.trailC;
+                const numCol = this.colonies;
+                const pal = this.palettes[this.paletteKey].cols;
+
+                const c0 = pal[0];
+                const c1 = pal[1];
+                const c2 = pal[2];
+
+                // Composición aditiva bioluminiscente en Uint8ClampedArray
+                for (let i = 0; i < len; i++) {
+                    const v0 = tA[i];
+                    const v1 = numCol >= 2 ? tB[i] : 0;
+                    const v2 = numCol >= 3 ? tC[i] : 0;
+
+                    // Curva no lineal para resaltar filamentos brillantes sobre fondo abisal
+                    const i0 = v0 * (0.6 + v0 * 0.85);
+                    const i1 = v1 * (0.6 + v1 * 0.85);
+                    const i2 = v2 * (0.6 + v2 * 0.85);
+
+                    const p = i * 4;
+                    data[p]     = 5  + i0 * c0[0] + i1 * c1[0] + i2 * c2[0];
+                    data[p + 1] = 7  + i0 * c0[1] + i1 * c1[1] + i2 * c2[1];
+                    data[p + 2] = 12 + i0 * c0[2] + i1 * c1[2] + i2 * c2[2];
+                    data[p + 3] = 255;
+                }
+
+                this.offCtx.putImageData(this.imgData, 0, 0);
+                ctx.imageSmoothingEnabled = true;
+                ctx.drawImage(this.offCanvas, 0, 0, width, height);
+            }
+
+            getTelemetry() {
+                // Calcular cohesión vascular / entropía de la red de feromonas
+                let activeNodes = 0;
+                const step = 6;
+                let samples = 0;
+                for (let i = 0; i < this.trailA.length; i += step) {
+                    if (this.trailA[i] > 0.14 || (this.colonies > 1 && this.trailB[i] > 0.14)) {
+                        activeNodes++;
+                    }
+                    samples++;
+                }
+                const ratio = activeNodes / (samples || 1);
+                const index = Math.min(7.99, 1.5 + ratio * 11.2);
+                return {
+                    countLabel: 'AGENTES',
+                    count: this.agentCount,
+                    orderLabel: 'COMPLEJIDAD RED',
+                    order: `${index.toFixed(2)} bit`
+                };
+            }
+        }
+
+        // ============================================================================
+        // GESTIÓN DE INTERFAZ, REDIMENSIONAMIENTO Y BUCLE PRINCIPAL
+        // ============================================================================
+        const particleEngine = new ParticleLifeEngine();
+        const swarmEngine = new SwarmPhysarumEngine();
+
+        function handleResize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+            canvas.width = Math.floor(width * dpr);
+            canvas.height = Math.floor(height * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            if (currentMode === 'swarm') {
+                swarmEngine.init();
+            } else {
+                ctx.fillStyle = '#05070c';
+                ctx.fillRect(0, 0, width, height);
+            }
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+
+            if (mode === 'particle') {
+                btnModeParticle.className = 'px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-[0_0_12px_rgba(34,211,238,0.18)] whitespace-nowrap';
+                btnModeSwarm.className = 'px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer text-slate-400 hover:text-slate-200 border border-transparent whitespace-nowrap';
+                particleEngine.buildUI();
+                particleEngine.init();
+            } else {
+                btnModeSwarm.className = 'px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 shadow-[0_0_12px_rgba(52,211,153,0.18)] whitespace-nowrap';
+                btnModeParticle.className = 'px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer text-slate-400 hover:text-slate-200 border border-transparent whitespace-nowrap';
+                swarmEngine.buildUI();
+                swarmEngine.init();
+            }
+        }
+
+        function togglePlayPause() {
+            isPaused = !isPaused;
+            if (isPaused) {
+                iconPause.classList.add('hidden');
+                iconPlay.classList.remove('hidden');
+                btnPlayPause.classList.add('border-amber-400/60', 'text-amber-300');
+                showToast('Simulación en Pausa');
+            } else {
+                iconPlay.classList.add('hidden');
+                iconPause.classList.remove('hidden');
+                btnPlayPause.classList.remove('border-amber-400/60', 'text-amber-300');
+            }
+        }
+
+        function toggleDrawer(forceState) {
+            isDrawerOpen = typeof forceState === 'boolean' ? forceState : !isDrawerOpen;
+            if (isDrawerOpen) {
+                rightDrawer.classList.remove('panel-collapsed-right');
+                btnToggleDrawer.classList.add('opacity-0', 'pointer-events-none');
+            } else {
+                rightDrawer.classList.add('panel-collapsed-right');
+                btnToggleDrawer.classList.remove('opacity-0', 'pointer-events-none');
+            }
+        }
+
+        function toggleZenMode() {
+            isZenMode = !isZenMode;
+            if (isZenMode) {
+                topBar.classList.add('zen-top-hidden');
+                rightDrawer.classList.add('zen-hidden');
+                btnToggleDrawer.classList.add('zen-hidden');
+                btnExitZen.classList.remove('hidden');
+                btnExitZen.classList.add('flex');
+            } else {
+                topBar.classList.remove('zen-top-hidden');
+                rightDrawer.classList.remove('zen-hidden');
+                if (!isDrawerOpen) btnToggleDrawer.classList.remove('zen-hidden');
+                btnExitZen.classList.add('hidden');
+                btnExitZen.classList.remove('flex');
+            }
+        }
+
+        function captureSnapshot() {
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+            link.download = `emergencia-${currentMode}-${timestamp}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast('Imagen PNG descargada');
+        }
+
+        // --- BUCLE PRINCIPAL DE ANIMACIÓN ---
+        function animate(now) {
+            frameCount++;
+            if (now - lastFpsTime >= 500) {
+                currentFps = Math.round((frameCount * 1000) / (now - lastFpsTime));
+                frameCount = 0;
+                lastFpsTime = now;
+
+                teleFps.textContent = `${currentFps} FPS`;
+                teleFps.className = `text-xs font-mono-tech font-semibold mt-0.5 ${
+                    currentFps >= 50 ? 'text-emerald-400' : currentFps >= 30 ? 'text-amber-400' : 'text-rose-400'
+                }`;
+            }
+
+            const engine = currentMode === 'particle' ? particleEngine : swarmEngine;
+
+            if (!isPaused) {
+                engine.step();
+            }
+            engine.draw();
+
+            if (frameCount % 12 === 0) {
+                const t = engine.getTelemetry();
+                teleCountLabel.textContent = t.countLabel;
+                teleCount.textContent = t.count;
+                teleOrderLabel.textContent = t.orderLabel;
+                teleOrder.textContent = t.order;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- EVENTOS DE CONTROLES Y PUNTERO ---
+        btnModeParticle.addEventListener('click', () => setMode('particle'));
+        btnModeSwarm.addEventListener('click', () => setMode('swarm'));
+        btnPlayPause.addEventListener('click', togglePlayPause);
+
+        btnReset.addEventListener('click', () => {
+            if (currentMode === 'particle') particleEngine.init();
+            else swarmEngine.init();
+            showToast('Sistema reiniciado');
+        });
+
+        btnSnapshot.addEventListener('click', captureSnapshot);
+        btnZenMode.addEventListener('click', toggleZenMode);
+        btnExitZen.addEventListener('click', toggleZenMode);
+        btnToggleDrawer.addEventListener('click', () => toggleDrawer(true));
+        btnCloseDrawer.addEventListener('click', () => toggleDrawer(false));
+
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlayPause();
+            } else if (e.key === 'h' || e.key === 'H') {
+                toggleZenMode();
+            } else if (e.key === 'r' || e.key === 'R') {
+                btnReset.click();
+            }
+        });
+
+        // Gestión del cursor visual y eventos de ratón/táctil
+        function updatePointerCursor(x, y, isRepel) {
+            const diameter = pointer.radius * 2;
+            pointerCursor.style.width = `${diameter}px`;
+            pointerCursor.style.height = `${diameter}px`;
+            pointerCursor.style.left = `${x}px`;
+            pointerCursor.style.top = `${y}px`;
+
+            if (isRepel) {
+                pointerCursor.className = 'fixed pointer-events-none rounded-full border border-rose-400/70 bg-rose-500/10 shadow-[0_0_24px_rgba(244,63,94,0.28)] z-10';
+            } else {
+                pointerCursor.className = 'fixed pointer-events-none rounded-full border border-cyan-400/60 bg-cyan-400/5 shadow-[0_0_24px_rgba(34,211,238,0.22)] z-10';
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            pointer.active = true;
+            pointer.x = e.clientX;
+            pointer.y = e.clientY;
+            pointer.isRepel = (e.button === 2 || e.shiftKey);
+            updatePointerCursor(e.clientX, e.clientY, pointer.isRepel);
+        });
+
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        window.addEventListener('mousemove', (e) => {
+            pointer.x = e.clientX;
+            pointer.y = e.clientY;
+            if (pointer.active) {
+                pointer.isRepel = pointer.isRepel || e.shiftKey;
+                updatePointerCursor(e.clientX, e.clientY, pointer.isRepel);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            pointer.active = false;
+            pointerCursor.classList.add('hidden');
+        });
+
+        // Soporte táctil completo
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                const t = e.touches[0];
+                pointer.active = true;
+                pointer.x = t.clientX;
+                pointer.y = t.clientY;
+                pointer.isRepel = e.touches.length > 1; // 2 dedos = repeler
+                updatePointerCursor(t.clientX, t.clientY, pointer.isRepel);
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (pointer.active && e.touches.length > 0) {
+                const t = e.touches[0];
+                pointer.x = t.clientX;
+                pointer.y = t.clientY;
+                updatePointerCursor(t.clientX, t.clientY, pointer.isRepel);
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('touchend', () => {
+            pointer.active = false;
+            pointerCursor.classList.add('hidden');
+        });
+
+        // Rueda del ratón sobre el lienzo ajusta el radio de influencia del pincel
+        canvas.addEventListener('wheel', (e) => {
+            pointer.radius = Math.max(50, Math.min(300, pointer.radius - Math.sign(e.deltaY) * 15));
+            if (pointer.active) {
+                updatePointerCursor(pointer.x, pointer.y, pointer.isRepel);
+            }
+        }, { passive: true });
+
+        window.addEventListener('resize', handleResize);
+
+        // --- INICIALIZACIÓN ---
+        window.onload = () => {
+            handleResize();
+            setMode('particle');
+            // En pantallas móviles pequeñas, iniciar con el panel derecho colapsado para ver el lienzo limpio
+            if (window.innerWidth < 640) {
+                toggleDrawer(false);
+            }
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>

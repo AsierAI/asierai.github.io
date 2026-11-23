@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caos Sonoro — Arte Algorítmico y Síntesis de Atractores</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #050508;
+            --panel-bg: rgba(12, 13, 20, 0.75);
+            --border-subtle: rgba(255, 255, 255, 0.1);
+            --accent: #38bdf8;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-deep);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        .font-mono-tech {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        #chaosCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            cursor: grab;
+            z-index: 1;
+        }
+
+        #chaosCanvas:active {
+            cursor: grabbing;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.14);
+            border-radius: 999px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.25);
+            background: #7dd3fc;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border: none;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 999px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 12px rgba(56, 189, 248, 0.45); }
+            50% { box-shadow: 0 0 22px rgba(56, 189, 248, 0.85); }
+        }
+        .audio-active-glow {
+            animation: pulseGlow 2.4s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Lienzo Principal de Renderizado -->
+    <canvas id="chaosCanvas"></canvas>
+
+    <!-- Cabecera Flotante Minimalista -->
+    <header class="fixed top-4 left-4 z-20 flex flex-col gap-2 pointer-events-none max-w-[calc(100vw-5rem)]">
+        <div class="glass-panel rounded-2xl px-4 py-3 pointer-events-auto inline-flex items-center gap-3">
+            <div class="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_10px_#38bdf8]"></div>
+            <div>
+                <h1 class="text-sm sm:text-base font-semibold tracking-wide text-white leading-tight">
+                    CAOS SONORO <span class="text-xs font-normal text-sky-400 ml-1">RK4 // SYNTH</span>
+                </h1>
+                <p id="attractorSubtitle" class="text-[11px] text-slate-400 font-mono-tech mt-0.5">
+                    dx/dt = σ(y - x) · dy/dt = x(ρ - z) - y · dz/dt = xy - βz
+                </p>
+            </div>
+        </div>
+
+        <!-- Botones de Acción Rápida -->
+        <div class="flex flex-wrap items-center gap-2 pointer-events-auto">
+            <button id="audioToggleBtn" class="glass-panel hover:bg-sky-500/20 border-sky-400/40 text-white rounded-xl px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center gap-2.5 transition-all cursor-pointer">
+                <span id="audioIcon" class="w-2.5 h-2.5 rounded-full bg-rose-500 transition-colors"></span>
+                <span id="audioBtnText">Iniciar Audio Caótico</span>
+            </button>
+
+            <button id="resetParticlesBtn" title="Dispersar partículas" class="glass-panel hover:bg-white/10 text-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer">
+                <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span class="hidden sm:inline">Dispersar</span>
+            </button>
+
+            <button id="snapshotBtn" title="Descargar captura PNG" class="glass-panel hover:bg-white/10 text-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span class="hidden sm:inline">Capturar PNG</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Botón para Colapsar/Expandir Panel Lateral -->
+    <button id="toggleSidebarBtn" aria-label="Alternar panel de control" class="fixed top-4 right-4 z-30 glass-panel hover:bg-white/10 text-white rounded-xl p-2.5 transition-all cursor-pointer">
+        <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+        </svg>
+    </button>
+
+    <!-- Panel de Control Lateral -->
+    <aside id="controlSidebar" class="fixed top-16 right-4 bottom-4 w-[calc(100vw-2rem)] sm:w-88 max-w-[350px] z-20 glass-panel rounded-2xl flex flex-col transition-all duration-300 ease-out overflow-hidden">
+        
+        <!-- Pestañas -->
+        <div class="grid grid-cols-2 border-b border-white/10 p-1.5 gap-1 bg-black/20">
+            <button data-tab="attractor" class="tab-btn active-tab py-2 px-3 rounded-xl text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-400/30 transition-all cursor-pointer">
+                Sistema Dinámico
+            </button>
+            <button data-tab="audio" class="tab-btn py-2 px-3 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-all cursor-pointer">
+                Síntesis Sonora
+            </button>
+        </div>
+
+        <!-- Contenido Desplazable -->
+        <div class="p-4 overflow-y-auto custom-scroll flex-1 space-y-5">
+
+            <!-- SECCIÓN 1: SISTEMA DINÁMICO Y VISUALES -->
+            <div id="tab-attractor" class="space-y-5">
+                <div class="space-y-2">
+                    <label class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold flex justify-between">
+                        <span>Atractor Caótico (RK4)</span>
+                        <span class="text-sky-400 font-mono-tech">3D → 2D</span>
+                    </label>
+                    <select id="attractorSelect" class="w-full bg-slate-900/90 border border-white/15 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400 cursor-pointer">
+                        <option value="lorenz">Atractor de Lorenz (Mariposa)</option>
+                        <option value="rossler">Atractor de Rössler (Espiral Plegada)</option>
+                        <option value="thomas">Atractor de Thomas (Simetría Cíclica)</option>
+                        <option value="aizawa">Atractor de Aizawa (Toroide Central)</option>
+                        <option value="halvorsen">Atractor de Halvorsen (Cúbico)</option>
+                    </select>
+                </div>
+
+                <!-- Parámetros Dinámicos -->
+                <div class="space-y-3 bg-white/[0.03] p-3.5 rounded-xl border border-white/10">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] uppercase tracking-wider text-slate-300 font-semibold">Parámetros Ecuación</span>
+                        <button id="resetParamsBtn" class="text-[11px] text-sky-400 hover:text-sky-300 underline cursor-pointer">Restaurar</button>
+                    </div>
+                    <div id="equationParamsContainer" class="space-y-3"></div>
+                </div>
+
+                <!-- Renderizado y Partículas -->
+                <div class="space-y-3.5">
+                    <span class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">Renderizado y Partículas</span>
+                    
+                    <div class="space-y-1.5">
+                        <label class="text-xs text-slate-300 flex justify-between">
+                            <span>Paleta Cromática</span>
+                        </label>
+                        <select id="paletteSelect" class="w-full bg-slate-900/90 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 cursor-pointer">
+                            <option value="cyber">Neón Cyber (Cian / Magenta / Violeta)</option>
+                            <option value="thermal">Fuego Térmico (Ámbar / Carmesí / Oro)</option>
+                            <option value="spectral">Espectro Espectral (Arcoíris Profundo)</option>
+                            <option value="phosphor">Monocromo Fosforescente (Verde Osciloscopio)</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300">Velocidad Temporal (dt)</span>
+                            <span id="simSpeedVal" class="font-mono-tech text-sky-400">1.00x</span>
+                        </div>
+                        <input type="range" id="simSpeedSlider" min="0.1" max="2.5" step="0.05" value="1.0">
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300">Persistencia de Estela</span>
+                            <span id="trailLengthVal" class="font-mono-tech text-sky-400">Media</span>
+                        </div>
+                        <input type="range" id="trailLengthSlider" min="0.02" max="0.28" step="0.01" value="0.21">
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300">Partículas Simultáneas</span>
+                            <span id="particleCountVal" class="font-mono-tech text-sky-400">900</span>
+                        </div>
+                        <input type="range" id="particleCountSlider" min="250" max="1800" step="50" value="900">
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1">
+                        <span class="text-xs text-slate-300">Auto-rotación Orbital 3D</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="autoRotateToggle" checked class="sr-only peer">
+                            <div class="w-9 h-5 bg-white/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECCIÓN 2: MOTOR DE AUDIO EXPERIMENTAL -->
+            <div id="tab-audio" class="hidden space-y-5">
+                
+                <div class="space-y-2">
+                    <label class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
+                        Arquitectura de Síntesis
+                    </label>
+                    <select id="synthModeSelect" class="w-full bg-slate-900/90 border border-white/15 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400 cursor-pointer">
+                        <option value="drone">Drone Cósmico (Sub + Armónicos Filtrados)</option>
+                        <option value="fm">FM Caótica (Modulación de Frecuencia Cruzada)</option>
+                        <option value="granular">Granular / Pulsos (Polifonía Controlada)</option>
+                    </select>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
+                        Cuantización Tonal (Mapeo X/Z)
+                    </label>
+                    <select id="scaleSelect" class="w-full bg-slate-900/90 border border-white/15 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400 cursor-pointer">
+                        <option value="pentatonic">Pentatónica Menor (Hipnótica)</option>
+                        <option value="continuous">Continuo Microtonal (Sin cuantizar)</option>
+                        <option value="phrygian">Modo Frigio Dominante (Oscuro / Tenso)</option>
+                        <option value="lydian">Modo Lidio (Etéreo / Espacial)</option>
+                    </select>
+                </div>
+
+                <div class="space-y-3.5 bg-white/[0.03] p-3.5 rounded-xl border border-white/10">
+                    <span class="text-[11px] uppercase tracking-wider text-slate-300 font-semibold block">Modulación y Espacio</span>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300">Nivel de Salida</span>
+                            <span id="masterGainVal" class="font-mono-tech text-sky-400">85%</span>
+                        </div>
+                        <input type="range" id="masterGainSlider" min="0" max="1" step="0.01" value="0.85">
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300">Frecuencia Fundamental</span>
+                            <span id="baseFreqVal" class="font-mono-tech text-sky-400">110 Hz</span>
+                        </div>
+                        <input type="range" id="baseFreqSlider" min="55" max="220" step="1" value="110">
+                    </div>
+
+                    <!-- Resonancia Q limitada estrictamente a [0.5 .. 5.5] para evitar auto-oscilación -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300">Resonancia Filtro (Q)</span>
+                            <span id="filterQVal" class="font-mono-tech text-sky-400">2.8</span>
+                        </div>
+                        <input type="range" id="filterQSlider" min="0.5" max="5.5" step="0.1" value="2.8">
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300">Espacio (Ping-Pong + Reverb)</span>
+                            <span id="spaceMixVal" class="font-mono-tech text-sky-400">38%</span>
+                        </div>
+                        <input type="range" id="spaceMixSlider" min="0" max="0.75" step="0.01" value="0.38">
+                    </div>
+                </div>
+
+                <div class="text-[11px] text-slate-400 leading-relaxed bg-sky-950/20 border border-sky-500/20 rounded-xl p-3">
+                    <strong class="text-sky-300">Cadena Limpia + Limitador:</strong> Señal protegida por limitador maestro (-4 dB, ratio 16:1), bucle de feedback filtrado (120 Hz – 1.8 kHz) y suavizado continuo <span class="font-mono-tech text-white">setTargetAtTime</span>.
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Pie del Panel: Telemetría y Osciloscopio -->
+        <div class="border-t border-white/10 p-3.5 bg-black/40 space-y-2.5">
+            <div class="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-400">
+                <span>Telemetría Partícula Líder</span>
+                <span id="velTelemetry" class="font-mono-tech text-emerald-400">v: 0%</span>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-1.5 font-mono-tech text-[11px]">
+                <div class="bg-white/5 rounded-lg px-2 py-1.5 border border-white/5">
+                    <span class="text-slate-500">X:</span> <span id="coordX" class="text-sky-300">0.00</span>
+                </div>
+                <div class="bg-white/5 rounded-lg px-2 py-1.5 border border-white/5">
+                    <span class="text-slate-500">Y:</span> <span id="coordY" class="text-fuchsia-300">0.00</span>
+                </div>
+                <div class="bg-white/5 rounded-lg px-2 py-1.5 border border-white/5">
+                    <span class="text-slate-500">Z:</span> <span id="coordZ" class="text-amber-300">0.00</span>
+                </div>
+            </div>
+
+            <div class="relative rounded-xl overflow-hidden border border-white/10 bg-[#040407] h-14">
+                <canvas id="scopeCanvas" class="w-full h-full block"></canvas>
+                <span class="absolute top-1 left-2 text-[9px] font-mono-tech text-slate-500 pointer-events-none">OSCILOSCOPIO // SEÑAL LIMPIA</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Notificación Toast -->
+    <div id="toastNotification" class="fixed bottom-4 left-4 z-30 glass-panel rounded-xl px-4 py-2.5 text-xs text-sky-200 border-sky-400/30 opacity-0 translate-y-3 pointer-events-none transition-all duration-300">
+        Mensaje del sistema
+    </div>
+
+    <!-- Leyenda HUD de Partícula Sonora -->
+    <div id="soundParticleHud" class="fixed bottom-4 left-4 z-20 glass-panel rounded-xl px-3.5 py-2 flex items-center gap-2.5 pointer-events-none border-rose-500/30">
+        <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff2a4b] opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#ff4d6d] shadow-[0_0_8px_#ff2a4b]"></span>
+        </span>
+        <span class="text-[11px] font-medium tracking-wide text-rose-200">Partícula sonora</span>
+    </div>
+
+    <script>
+    /**
+     * ============================================================================
+     * CAOS SONORO — MOTOR RK4 ESTABILIZADO Y SINTETIZADOR WEB AUDIO BLINDADO
+     * ============================================================================
+     */
+
+    const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+    const safeFinite = (val, fallback = 0) => (Number.isFinite(val) ? val : fallback);
+
+    // ----------------------------------------------------------------------------
+    // 1. DEFINICIÓN DE ATRACTORES CAÓTICOS
+    // ----------------------------------------------------------------------------
+    const ATTRACTORS = {
+        lorenz: {
+            name: 'Lorenz',
+            equation: 'dx/dt = σ(y - x) · dy/dt = x(ρ - z) - y · dz/dt = xy - βz',
+            dt: 0.006,
+            scale: 11.5,
+            center: { x: 0, y: 0, z: 25 },
+            normRange: { x: 24, y: 30, z: 26 },
+            spawnRadius: 12,
+            params: {
+                sigma: { label: 'σ (Sigma)', min: 2, max: 20, step: 0.1, value: 10, default: 10 },
+                rho:   { label: 'ρ (Rho)',   min: 10, max: 45, step: 0.5, value: 28, default: 28 },
+                beta:  { label: 'β (Beta)',  min: 0.5, max: 6, step: 0.05, value: 2.667, default: 2.667 }
+            },
+            derivatives(x, y, z, p) {
+                return {
+                    dx: p.sigma.value * (y - x),
+                    dy: x * (p.rho.value - z) - y,
+                    dz: x * y - p.beta.value * z
+                };
+            }
+        },
+        rossler: {
+            name: 'Rössler',
+            equation: 'dx/dt = -y - z · dy/dt = x + ay · dz/dt = b + z(x - c)',
+            dt: 0.032,
+            scale: 16,
+            center: { x: 0, y: 0, z: 6 },
+            normRange: { x: 14, y: 14, z: 18 },
+            spawnRadius: 6,
+            params: {
+                a: { label: 'a (Expansión)', min: 0.05, max: 0.35, step: 0.01, value: 0.2, default: 0.2 },
+                b: { label: 'b (Umbral)',    min: 0.05, max: 0.6,  step: 0.01, value: 0.2, default: 0.2 },
+                c: { label: 'c (Pliegue)',   min: 2.5,  max: 10,   step: 0.1,  value: 5.7, default: 5.7 }
+            },
+            derivatives(x, y, z, p) {
+                return {
+                    dx: -y - z,
+                    dy: x + p.a.value * y,
+                    dz: p.b.value + z * (x - p.c.value)
+                };
+            }
+        },
+        thomas: {
+            name: 'Thomas',
+            equation: 'dx/dt = sin(y) - bx · dy/dt = sin(z) - by · dz/dt = sin(x) - bz',
+            dt: 0.095,
+            scale: 68,
+            center: { x: 0, y: 0, z: 0 },
+            normRange: { x: 4.2, y: 4.2, z: 4.2 },
+            spawnRadius: 2.2,
+            params: {
+                b: { label: 'b (Disipación)', min: 0.08, max: 0.32, step: 0.005, value: 0.19, default: 0.19 }
+            },
+            derivatives(x, y, z, p) {
+                const b = p.b.value;
+                return {
+                    dx: Math.sin(y) - b * x,
+                    dy: Math.sin(z) - b * y,
+                    dz: Math.sin(x) - b * z
+                };
+            }
+        },
+        aizawa: {
+            name: 'Aizawa',
+            equation: 'dx = (z-b)x - dy · dy = dx + (z-b)y · dz = c + az - z³/3 - (x²+y²)(1+ez) + fzx³',
+            dt: 0.014,
+            scale: 155,
+            center: { x: 0, y: 0, z: 0.7 },
+            normRange: { x: 1.5, y: 1.5, z: 1.2 },
+            spawnRadius: 0.6,
+            params: {
+                a: { label: 'a', min: 0.5, max: 1.3, step: 0.02, value: 0.95, default: 0.95 },
+                b: { label: 'b', min: 0.4, max: 1.0, step: 0.02, value: 0.7,  default: 0.7 },
+                c: { label: 'c', min: 0.3, max: 0.9, step: 0.02, value: 0.6,  default: 0.6 },
+                d: { label: 'd', min: 2.0, max: 5.0, step: 0.1,  value: 3.5,  default: 3.5 },
+                e: { label: 'e', min: 0.05, max: 0.5, step: 0.01, value: 0.25, default: 0.25 },
+                f: { label: 'f', min: 0.0, max: 0.3, step: 0.01, value: 0.1,  default: 0.1 }
+            },
+            derivatives(x, y, z, p) {
+                const a = p.a.value, b = p.b.value, c = p.c.value;
+                const d = p.d.value, e = p.e.value, f = p.f.value;
+                const r2 = x * x + y * y;
+                return {
+                    dx: (z - b) * x - d * y,
+                    dy: d * x + (z - b) * y,
+                    dz: c + a * z - (z * z * z) / 3 - r2 * (1 + e * z) + f * z * (x * x * x)
+                };
+            }
+        },
+        halvorsen: {
+            name: 'Halvorsen',
+            equation: 'dx = -ax - 4y - 4z - y² · dy = -ay - 4z - 4x - z² · dz = -az - 4x - 4y - x²',
+            dt: 0.0055,
+            scale: 28,
+            center: { x: -1.5, y: -1.5, z: -1.5 },
+            normRange: { x: 9, y: 9, z: 9 },
+            spawnRadius: 3.5,
+            params: {
+                a: { label: 'a (Simetría)', min: 1.15, max: 1.85, step: 0.01, value: 1.4, default: 1.4 }
+            },
+            derivatives(x, y, z, p) {
+                const a = p.a.value;
+                return {
+                    dx: -a * x - 4 * y - 4 * z - y * y,
+                    dy: -a * y - 4 * z - 4 * x - z * z,
+                    dz: -a * z - 4 * x - 4 * y - x * x
+                };
+            }
+        }
+    };
+
+    // ----------------------------------------------------------------------------
+    // 2. ESTADO GLOBAL DE SIMULACIÓN Y CÁMARA 3D
+    // ----------------------------------------------------------------------------
+    const state = {
+        attractorKey: 'lorenz',
+        palette: 'cyber',
+        simSpeed: 1.0,
+        trailFade: 0.21,
+        particleCount: 900,
+        autoRotate: true,
+        rotX: 0.38,
+        rotY: -0.62,
+        zoom: 1.0,
+        isDragging: false,
+        lastPointerX: 0,
+        lastPointerY: 0,
+        pinchDist: 0,
+        particles: [],
+        leader: {
+            x: 0.1, y: 0, z: 0,
+            speed: 0,
+            normX: 0, normY: 0, normZ: 0,
+            screenX: 0,
+            trail: [],
+            maxTrail: 42
+        }
+    };
+
+    // ----------------------------------------------------------------------------
+    // 3. INTEGRACIÓN RK4 CON PROTECCIÓN ESTRICTA CONTRA DIVERGENCIA (RADIO > 500)
+    // ----------------------------------------------------------------------------
+    function spawnNearCenter(attr) {
+        const r = attr.spawnRadius;
+        return {
+            x: attr.center.x + (Math.random() - 0.5) * r,
+            y: attr.center.y + (Math.random() - 0.5) * r,
+            z: attr.center.z + (Math.random() - 0.5) * r
+        };
+    }
+
+    function rk4Step(x, y, z, dt, attr) {
+        const p = attr.params;
+        const k1 = attr.derivatives(x, y, z, p);
+        const k2 = attr.derivatives(x + 0.5 * dt * k1.dx, y + 0.5 * dt * k1.dy, z + 0.5 * dt * k1.dz, p);
+        const k3 = attr.derivatives(x + 0.5 * dt * k2.dx, y + 0.5 * dt * k2.dy, z + 0.5 * dt * k2.dz, p);
+        const k4 = attr.derivatives(x + dt * k3.dx, y + dt * k3.dy, z + dt * k3.dz, p);
+
+        const nx = x + (dt / 6) * (k1.dx + 2 * k2.dx + 2 * k3.dx + k4.dx);
+        const ny = y + (dt / 6) * (k1.dy + 2 * k2.dy + 2 * k3.dy + k4.dy);
+        const nz = z + (dt / 6) * (k1.dz + 2 * k2.dz + 2 * k3.dz + k4.dz);
+
+        const distSq = (nx - attr.center.x) ** 2 + (ny - attr.center.y) ** 2 + (nz - attr.center.z) ** 2;
+        if (!Number.isFinite(nx) || !Number.isFinite(ny) || !Number.isFinite(nz) || distSq > 250000) {
+            const safePt = spawnNearCenter(attr);
+            return { x: safePt.x, y: safePt.y, z: safePt.z, reset: true };
+        }
+        return { x: nx, y: ny, z: nz, reset: false };
+    }
+
+    function initParticles(clearScreen = true) {
+        const attr = ATTRACTORS[state.attractorKey];
+        state.particles = [];
+        for (let i = 0; i < state.particleCount; i++) {
+            const pt = spawnNearCenter(attr);
+            // Calentamiento breve para que el atractor arranque ya dibujado
+            let px = pt.x, py = pt.y, pz = pt.z;
+            for (let w = 0; w < 24; w++) {
+                const next = rk4Step(px, py, pz, attr.dt, attr);
+                px = next.x; py = next.y; pz = next.z;
+            }
+            state.particles.push({ x: px, y: py, z: pz });
+        }
+
+        state.leader.x = state.particles[0].x;
+        state.leader.y = state.particles[0].y;
+        state.leader.z = state.particles[0].z;
+        state.leader.speed = 0;
+        state.leader.normX = 0;
+        state.leader.normY = 0;
+        state.leader.normZ = 0;
+        state.leader.screenX = 0;
+        state.leader.trail = [{ x: state.leader.x, y: state.leader.y, z: state.leader.z }];
+
+        if (clearScreen && ctx) {
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = '#050508';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 4. PALETAS DE COLOR DINÁMICAS
+    // ----------------------------------------------------------------------------
+    function getParticleColor(speedNorm, zNorm, palette) {
+        const alpha = 0.24 + speedNorm * 0.42;
+        switch (palette) {
+            case 'thermal': {
+                const hue = 8 + speedNorm * 38 + zNorm * 14;
+                const light = 48 + speedNorm * 22;
+                return `hsla(${hue.toFixed(0)}, 95%, ${light.toFixed(0)}%, ${alpha.toFixed(3)})`;
+            }
+            case 'spectral': {
+                const hue = (zNorm * 240 + speedNorm * 110 + 180) % 360;
+                return `hsla(${hue.toFixed(0)}, 90%, 58%, ${alpha.toFixed(3)})`;
+            }
+            case 'phosphor': {
+                const light = 36 + speedNorm * 34 + zNorm * 12;
+                return `hsla(142, 92%, ${light.toFixed(0)}%, ${alpha.toFixed(3)})`;
+            }
+            case 'cyber':
+            default: {
+                const hue = 190 + zNorm * 85 + speedNorm * 45;
+                const light = 52 + speedNorm * 18;
+                return `hsla(${hue.toFixed(0)}, 94%, ${light.toFixed(0)}%, ${alpha.toFixed(3)})`;
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5. MOTOR DE AUDIO EXPERIMENTAL BLINDADO (WEB AUDIO API)
+    // ----------------------------------------------------------------------------
+    const SCALES = {
+        pentatonic: [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24],
+        phrygian:   [0, 1, 4, 5, 7, 8, 10, 12, 13, 16, 17, 19, 20, 22, 24],
+        lydian:     [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24]
+    };
+
+    class ChaosSynthEngine {
+        constructor() {
+            this.ctx = null;
+            this.isPlaying = false;
+            this.mode = 'drone';
+            this.scale = 'pentatonic';
+            this.masterVolume = 0.85;
+            this.baseFreq = 110;
+            this.filterQ = 2.8;
+            this.spaceMix = 0.38;
+
+            this.activeGrains = 0;
+            this.maxGrains = 10;
+            this.lastGrainTime = 0;
+        }
+
+        init() {
+            if (this.ctx) return;
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioCtx();
+
+            // 1. Limitador maestro duro al final de la cadena (evita cualquier clipping)
+            this.limiter = this.ctx.createDynamicsCompressor();
+            this.limiter.threshold.value = -4;
+            this.limiter.knee.value = 4;
+            this.limiter.ratio.value = 16;
+            this.limiter.attack.value = 0.003;
+            this.limiter.release.value = 0.14;
+
+            // Ganancia maestra con mayor presencia sonora y techo seguro <= 0.85
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.0001;
+
+            // Analizador para el osciloscopio HUD
+            this.analyser = this.ctx.createAnalyser();
+            this.analyser.fftSize = 512;
+            this.scopeData = new Uint8Array(this.analyser.frequencyBinCount);
+
+            this.limiter.connect(this.masterGain);
+            this.masterGain.connect(this.analyser);
+            this.analyser.connect(this.ctx.destination);
+
+            // 2. Filtro resonante principal con Q seguro
+            this.mainFilter = this.ctx.createBiquadFilter();
+            this.mainFilter.type = 'lowpass';
+            this.mainFilter.frequency.value = 850;
+            this.mainFilter.Q.value = clamp(this.filterQ, 0.5, 5.5);
+
+            // Paneo estéreo controlado por la posición X en pantalla
+            this.panner = this.ctx.createStereoPanner();
+            this.panner.pan.value = 0;
+
+            // Bus de voz continua (Drone / FM) y bus de granos con ganancia optimizada
+            this.continuousBus = this.ctx.createGain();
+            this.continuousBus.gain.value = 0.55;
+
+            this.grainBus = this.ctx.createGain();
+            this.grainBus.gain.value = 0.85;
+
+            this.continuousBus.connect(this.mainFilter);
+            this.grainBus.connect(this.mainFilter);
+            this.mainFilter.connect(this.panner);
+
+            // 3. Ruta seca (Dry) y ruta espacial (Ping-Pong Delay filtrado + Reverb)
+            this.dryGain = this.ctx.createGain();
+            this.dryGain.gain.value = 1 - this.spaceMix * 0.45;
+            this.panner.connect(this.dryGain);
+            this.dryGain.connect(this.limiter);
+
+            this.wetGain = this.ctx.createGain();
+            this.wetGain.gain.value = this.spaceMix * 0.55;
+            this.wetGain.connect(this.limiter);
+
+            // Bucle Ping-Pong Estéreo con filtros paso-alto y paso-bajo en el feedback
+            this.delayL = this.ctx.createDelay(1.0);
+            this.delayR = this.ctx.createDelay(1.0);
+            this.delayL.delayTime.value = 0.29;
+            this.delayR.delayTime.value = 0.41;
+
+            const fbHP = this.ctx.createBiquadFilter();
+            fbHP.type = 'highpass';
+            fbHP.frequency.value = 120;
+
+            const fbLP = this.ctx.createBiquadFilter();
+            fbLP.type = 'lowpass';
+            fbLP.frequency.value = 1800;
+
+            this.feedbackGain = this.ctx.createGain();
+            this.feedbackGain.gain.value = 0.34; // <= 0.38 estricto
+
+            const merger = this.ctx.createChannelMerger(2);
+
+            this.panner.connect(this.delayL);
+            this.delayL.connect(fbHP);
+            fbHP.connect(fbLP);
+            fbLP.connect(this.delayR);
+            this.delayR.connect(this.feedbackGain);
+            this.feedbackGain.connect(this.delayL);
+
+            this.delayL.connect(merger, 0, 0);
+            this.delayR.connect(merger, 0, 1);
+            merger.connect(this.wetGain);
+
+            // Reverberación por convolución sintética (impulso exponencial limpio)
+            this.convolver = this.ctx.createConvolver();
+            this.convolver.buffer = this.createImpulseBuffer(2.1, 2.8);
+            this.reverbSend = this.ctx.createGain();
+            this.reverbSend.gain.value = 0.35;
+            this.panner.connect(this.reverbSend);
+            this.reverbSend.connect(this.convolver);
+            this.convolver.connect(this.wetGain);
+
+            // 4. Osciladores continuos (Drone y FM)
+            this.oscSub = this.ctx.createOscillator();
+            this.oscSub.type = 'sine';
+            this.oscSub.frequency.value = this.baseFreq * 0.5;
+            this.subGain = this.ctx.createGain();
+            this.subGain.gain.value = 0.52;
+            this.oscSub.connect(this.subGain);
+            this.subGain.connect(this.continuousBus);
+
+            this.oscCarrier = this.ctx.createOscillator();
+            this.oscCarrier.type = 'triangle';
+            this.oscCarrier.frequency.value = this.baseFreq;
+            this.carrierGain = this.ctx.createGain();
+            this.carrierGain.gain.value = 0.48;
+            this.oscCarrier.connect(this.carrierGain);
+            this.carrierGain.connect(this.continuousBus);
+
+            this.oscMod = this.ctx.createOscillator();
+            this.oscMod.type = 'sine';
+            this.oscMod.frequency.value = this.baseFreq * 1.5;
+            this.fmDepth = this.ctx.createGain();
+            this.fmDepth.gain.value = 0;
+            this.oscMod.connect(this.fmDepth);
+            this.fmDepth.connect(this.oscCarrier.frequency);
+
+            this.oscSub.start();
+            this.oscCarrier.start();
+            this.oscMod.start();
+
+            this.applyModeMix();
+        }
+
+        createImpulseBuffer(duration, decay) {
+            const rate = this.ctx.sampleRate;
+            const length = Math.floor(rate * duration);
+            const impulse = this.ctx.createBuffer(2, length, rate);
+            for (let ch = 0; ch < 2; ch++) {
+                const data = impulse.getChannelData(ch);
+                for (let i = 0; i < length; i++) {
+                    const env = Math.pow(1 - i / length, decay);
+                    data[i] = (Math.random() * 2 - 1) * env * 0.45;
+                }
+            }
+            return impulse;
+        }
+
+        applyModeMix() {
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            if (this.mode === 'granular') {
+                this.continuousBus.gain.setTargetAtTime(0.10, now, 0.06);
+                this.oscCarrier.type = 'sine';
+            } else if (this.mode === 'fm') {
+                this.continuousBus.gain.setTargetAtTime(0.50, now, 0.06);
+                this.oscCarrier.type = 'sine';
+            } else {
+                this.continuousBus.gain.setTargetAtTime(0.55, now, 0.06);
+                this.oscCarrier.type = 'triangle';
+            }
+        }
+
+        async toggle() {
+            if (!this.ctx) this.init();
+            if (this.ctx.state === 'suspended') {
+                await this.ctx.resume();
+            }
+            const now = this.ctx.currentTime;
+            if (!this.isPlaying) {
+                this.isPlaying = true;
+                const safeCeiling = clamp(this.masterVolume * 0.85, 0.0001, 0.85);
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setTargetAtTime(safeCeiling, now, 0.08);
+            } else {
+                this.isPlaying = false;
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setTargetAtTime(0.0001, now, 0.06);
+            }
+            return this.isPlaying;
+        }
+
+        setMasterVolume(val) {
+            this.masterVolume = clamp(val, 0, 1);
+            if (this.ctx && this.isPlaying) {
+                const safeCeiling = clamp(this.masterVolume * 0.85, 0.0001, 0.85);
+                this.masterGain.gain.setTargetAtTime(safeCeiling, this.ctx.currentTime, 0.04);
+            }
+        }
+
+        setFilterQ(val) {
+            this.filterQ = clamp(val, 0.5, 5.5);
+            if (this.ctx) {
+                this.mainFilter.Q.setTargetAtTime(this.filterQ, this.ctx.currentTime, 0.04);
+            }
+        }
+
+        setSpaceMix(val) {
+            this.spaceMix = clamp(val, 0, 0.75);
+            if (this.ctx) {
+                const now = this.ctx.currentTime;
+                this.dryGain.gain.setTargetAtTime(1 - this.spaceMix * 0.45, now, 0.05);
+                this.wetGain.gain.setTargetAtTime(this.spaceMix * 0.55, now, 0.05);
+            }
+        }
+
+        mapToPitch(normVal) {
+            const base = clamp(this.baseFreq, 40, 440);
+            const normalized = clamp((normVal + 1) * 0.5, 0, 1);
+            if (this.scale === 'continuous') {
+                return base * Math.pow(2, normalized * 2);
+            }
+            const notes = SCALES[this.scale] || SCALES.pentatonic;
+            const idx = Math.min(notes.length - 1, Math.floor(normalized * notes.length));
+            return base * Math.pow(2, notes[idx] / 12);
+        }
+
+        spawnGrain(freq, panVal, speed) {
+            if (!this.ctx || this.activeGrains >= this.maxGrains) return;
+            const now = this.ctx.currentTime;
+            const dur = 0.075 + (1 - speed) * 0.09;
+            const safeFreq = clamp(safeFinite(freq, 220), 60, 2400);
+
+            this.activeGrains++;
+            const osc = this.ctx.createOscillator();
+            const env = this.ctx.createGain();
+            const gPan = this.ctx.createStereoPanner();
+
+            osc.type = speed > 0.55 ? 'triangle' : 'sine';
+            osc.frequency.setValueAtTime(safeFreq, now);
+            osc.frequency.exponentialRampToValueAtTime(safeFreq * (1 + (speed - 0.5) * 0.08), now + dur);
+
+            gPan.pan.setValueAtTime(clamp(panVal, -0.9, 0.9), now);
+
+            const peak = clamp(0.11 + speed * 0.07, 0.05, 0.18);
+            env.gain.setValueAtTime(0.0001, now);
+            env.gain.linearRampToValueAtTime(peak, now + 0.015);
+            env.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+            osc.connect(env);
+            env.connect(gPan);
+            gPan.connect(this.grainBus);
+
+            osc.onended = () => {
+                this.activeGrains = Math.max(0, this.activeGrains - 1);
+                try {
+                    osc.disconnect();
+                    env.disconnect();
+                    gPan.disconnect();
+                } catch (_) {}
+            };
+
+            osc.start(now);
+            osc.stop(now + dur + 0.01);
+        }
+
+        updateFromChaos(leader, nowMs) {
+            if (!this.ctx || !this.isPlaying) return;
+            const now = this.ctx.currentTime;
+
+            const nx = clamp(safeFinite(leader.normX, 0), -1, 1);
+            const ny = clamp(safeFinite(leader.normY, 0), -1, 1);
+            const nz = clamp(safeFinite(leader.normZ, 0), -1, 1);
+            const spd = clamp(safeFinite(leader.speed, 0), 0, 1);
+            const pan = clamp(safeFinite(leader.screenX, 0), -0.92, 0.92);
+
+            const pitch = clamp(this.mapToPitch(nx * 0.65 + nz * 0.35), 45, 1600);
+            const subPitch = clamp(this.baseFreq * 0.5, 32, 220);
+
+            this.oscCarrier.frequency.setTargetAtTime(pitch, now, 0.045);
+            this.oscSub.frequency.setTargetAtTime(subPitch, now, 0.06);
+            this.panner.pan.setTargetAtTime(pan, now, 0.04);
+
+            const cutoff = clamp(180 + ((ny + 1) * 0.5) * 1600 + spd * 1400, 140, 3600);
+            this.mainFilter.frequency.setTargetAtTime(cutoff, now, 0.045);
+
+            if (this.mode === 'fm') {
+                const modRatio = 1.5 + Math.round(((nz + 1) * 0.5) * 3) * 0.5;
+                this.oscMod.frequency.setTargetAtTime(clamp(pitch * modRatio, 40, 2400), now, 0.045);
+                this.fmDepth.gain.setTargetAtTime(clamp(spd * pitch * 0.85, 0, 420), now, 0.045);
+            } else if (this.mode === 'drone') {
+                this.oscMod.frequency.setTargetAtTime(clamp(pitch * 2.003, 40, 2400), now, 0.06);
+                this.fmDepth.gain.setTargetAtTime(clamp(spd * 28, 0, 45), now, 0.06);
+            } else {
+                this.fmDepth.gain.setTargetAtTime(0, now, 0.04);
+                const intervalMs = 150 - spd * 85;
+                if (nowMs - this.lastGrainTime >= intervalMs) {
+                    this.lastGrainTime = nowMs;
+                    const octaveMult = nz > 0.25 ? 2 : 1;
+                    this.spawnGrain(pitch * octaveMult, pan, spd);
+                }
+            }
+        }
+    }
+
+    const synth = new ChaosSynthEngine();
+
+    // ----------------------------------------------------------------------------
+    // 6. PROYECCIÓN 3D Y RENDERIZADO EN CANVAS
+    // ----------------------------------------------------------------------------
+    const canvas = document.getElementById('chaosCanvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const scopeCanvas = document.getElementById('scopeCanvas');
+    const scopeCtx = scopeCanvas.getContext('2d');
+
+    function resizeCanvases() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(window.innerWidth * dpr);
+        canvas.height = Math.floor(window.innerHeight * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = '#050508';
+        ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+        if (scopeCanvas.parentElement) {
+            const rect = scopeCanvas.parentElement.getBoundingClientRect();
+            scopeCanvas.width = Math.max(120, Math.floor(rect.width * dpr));
+            scopeCanvas.height = Math.max(40, Math.floor(rect.height * dpr));
+            scopeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+    }
+
+    function project3D(x, y, z, attr, width, height) {
+        const cx = x - attr.center.x;
+        const cy = y - attr.center.y;
+        const cz = z - attr.center.z;
+
+        const cosY = Math.cos(state.rotY);
+        const sinY = Math.sin(state.rotY);
+        const x1 = cx * cosY - cz * sinY;
+        const z1 = cx * sinY + cz * cosY;
+
+        const cosX = Math.cos(state.rotX);
+        const sinX = Math.sin(state.rotX);
+        const y2 = cy * cosX - z1 * sinX;
+        const z2 = cy * sinX + z1 * cosX;
+
+        const fov = 520;
+        const depth = Math.max(120, fov + z2 * attr.scale * 0.45);
+        const perspective = (fov / depth) * attr.scale * state.zoom;
+
+        return {
+            sx: width * 0.5 + x1 * perspective,
+            sy: height * 0.5 - y2 * perspective
+        };
+    }
+
+    function drawOscilloscope() {
+        const w = scopeCanvas.clientWidth || 280;
+        const h = scopeCanvas.clientHeight || 56;
+        scopeCtx.fillStyle = '#040407';
+        scopeCtx.fillRect(0, 0, w, h);
+
+        scopeCtx.strokeStyle = 'rgba(56, 189, 248, 0.14)';
+        scopeCtx.lineWidth = 1;
+        scopeCtx.beginPath();
+        scopeCtx.moveTo(0, h * 0.5);
+        scopeCtx.lineTo(w, h * 0.5);
+        scopeCtx.stroke();
+
+        if (!synth.analyser || !synth.isPlaying) return;
+
+        synth.analyser.getByteTimeDomainData(synth.scopeData);
+        scopeCtx.strokeStyle = '#38bdf8';
+        scopeCtx.lineWidth = 1.6;
+        scopeCtx.beginPath();
+
+        const slice = w / synth.scopeData.length;
+        let x = 0;
+        for (let i = 0; i < synth.scopeData.length; i++) {
+            const v = synth.scopeData[i] / 128.0;
+            const y = (v * h) * 0.5;
+            if (i === 0) scopeCtx.moveTo(x, y);
+            else scopeCtx.lineTo(x, y);
+            x += slice;
+        }
+        scopeCtx.stroke();
+    }
+
+    let lastTelemetryTime = 0;
+
+    function animate(now) {
+        requestAnimationFrame(animate);
+
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const attr = ATTRACTORS[state.attractorKey];
+
+        if (state.autoRotate && !state.isDragging) {
+            state.rotY += 0.0022;
+        }
+
+        // Desvanecimiento suave del rastro
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = `rgba(5, 5, 8, ${state.trailFade})`;
+        ctx.fillRect(0, 0, width, height);
+
+        // Fusión aditiva luminosa para las trayectorias
+        ctx.globalCompositeOperation = 'lighter';
+
+        const dt = attr.dt * state.simSpeed;
+        const subSteps = 2;
+        const subDt = dt / subSteps;
+        const norm = attr.normRange;
+        let leaderScreenPos = null;
+
+        for (let i = 0; i < state.particles.length; i++) {
+            const p = state.particles[i];
+            const startX = p.x;
+            const startY = p.y;
+            const startZ = p.z;
+
+            let didReset = false;
+            for (let s = 0; s < subSteps; s++) {
+                const next = rk4Step(p.x, p.y, p.z, subDt, attr);
+                p.x = next.x;
+                p.y = next.y;
+                p.z = next.z;
+                if (next.reset) {
+                    didReset = true;
+                    break;
+                }
+            }
+
+            if (didReset) {
+                // Si la partícula líder divergió y se reinició, reseteamos su telemetría limpiamente
+                if (i === 0) {
+                    state.leader.x = p.x;
+                    state.leader.y = p.y;
+                    state.leader.z = p.z;
+                    state.leader.speed = 0;
+                    state.leader.normX = 0;
+                    state.leader.normY = 0;
+                    state.leader.normZ = 0;
+                    state.leader.trail = [{ x: p.x, y: p.y, z: p.z }];
+                }
+                continue;
+            }
+
+            const dx = p.x - startX;
+            const dy = p.y - startY;
+            const dz = p.z - startZ;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const speedNorm = clamp(dist / (dt * norm.x * 1.4), 0, 1);
+
+            const p1 = project3D(startX, startY, startZ, attr, width, height);
+            const p2 = project3D(p.x, p.y, p.z, attr, width, height);
+
+            if (i === 0) {
+                state.leader.x = safeFinite(p.x, attr.center.x);
+                state.leader.y = safeFinite(p.y, attr.center.y);
+                state.leader.z = safeFinite(p.z, attr.center.z);
+                state.leader.speed = speedNorm;
+                state.leader.normX = clamp((p.x - attr.center.x) / norm.x, -1, 1);
+                state.leader.normY = clamp((p.y - attr.center.y) / norm.y, -1, 1);
+                state.leader.normZ = clamp((p.z - attr.center.z) / norm.z, -1, 1);
+                state.leader.screenX = clamp(((p2.sx / width) * 2) - 1, -1, 1);
+
+                state.leader.trail.push({ x: state.leader.x, y: state.leader.y, z: state.leader.z });
+                if (state.leader.trail.length > state.leader.maxTrail) {
+                    state.leader.trail.shift();
+                }
+                leaderScreenPos = p2;
+                continue;
+            }
+
+            if ((p2.sx < -50 && p1.sx < -50) || (p2.sx > width + 50 && p1.sx > width + 50) ||
+                (p2.sy < -50 && p1.sy < -50) || (p2.sy > height + 50 && p1.sy > height + 50)) {
+                continue;
+            }
+
+            const zNorm = clamp(((p.z - attr.center.z) / norm.z + 1) * 0.5, 0, 1);
+
+            ctx.strokeStyle = getParticleColor(speedNorm, zNorm, state.palette);
+            ctx.lineWidth = 1.1 + speedNorm * 0.8;
+
+            ctx.beginPath();
+            ctx.moveTo(p1.sx, p1.sy);
+            ctx.lineTo(p2.sx, p2.sy);
+            ctx.stroke();
+        }
+
+        // Renderizado destacado de la partícula sonora (estela propia + halo + anillo + núcleo)
+        if (leaderScreenPos) {
+            const trail = state.leader.trail;
+            if (trail.length > 1) {
+                for (let t = 1; t < trail.length; t++) {
+                    const ratio = t / (trail.length - 1);
+                    const ptA = project3D(trail[t - 1].x, trail[t - 1].y, trail[t - 1].z, attr, width, height);
+                    const ptB = project3D(trail[t].x, trail[t].y, trail[t].z, attr, width, height);
+
+                    ctx.strokeStyle = ratio > 0.72
+                        ? `rgba(255, 77, 109, ${(0.25 + ratio * 0.7).toFixed(3)})`
+                        : `rgba(255, 42, 75, ${(0.08 + ratio * 0.65).toFixed(3)})`;
+                    ctx.lineWidth = 1.5 + ratio * 2.8;
+                    ctx.beginPath();
+                    ctx.moveTo(ptA.sx, ptA.sy);
+                    ctx.lineTo(ptB.sx, ptB.sy);
+                    ctx.stroke();
+                }
+            }
+
+            const lx = leaderScreenPos.sx;
+            const ly = leaderScreenPos.sy;
+            const energy = clamp(state.leader.speed * 0.7 + (synth.isPlaying ? 0.35 : 0.1), 0, 1.2);
+            const pulse = 0.5 + 0.5 * Math.sin(now * (0.008 + energy * 0.01));
+
+            // 1. Halo radial luminoso amplio en rojo intenso / carmesí
+            const haloRadius = 32 + energy * 24 + pulse * 6;
+            const haloGrad = ctx.createRadialGradient(lx, ly, 0, lx, ly, haloRadius);
+            haloGrad.addColorStop(0, 'rgba(255, 77, 109, 0.78)');
+            haloGrad.addColorStop(0.32, 'rgba(255, 42, 75, 0.36)');
+            haloGrad.addColorStop(0.7, 'rgba(255, 42, 75, 0.09)');
+            haloGrad.addColorStop(1, 'rgba(255, 42, 75, 0)');
+
+            ctx.fillStyle = haloGrad;
+            ctx.beginPath();
+            ctx.arc(lx, ly, haloRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. Anillo exterior sutil pulsante sincronizado con amplitud/velocidad sonora
+            const ringRadius = 11 + energy * 10 + pulse * 7;
+            ctx.strokeStyle = `rgba(255, 77, 109, ${(0.35 + (1 - pulse) * 0.45).toFixed(3)})`;
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.arc(lx, ly, ringRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 3. Núcleo central brillante blanco-rojizo
+            const coreRadius = 4.6 + energy * 1.6;
+            const coreGrad = ctx.createRadialGradient(lx, ly, 0, lx, ly, coreRadius);
+            coreGrad.addColorStop(0, '#ffffff');
+            coreGrad.addColorStop(0.55, '#ffd6de');
+            coreGrad.addColorStop(1, '#ff2a4b');
+
+            ctx.fillStyle = coreGrad;
+            ctx.beginPath();
+            ctx.arc(lx, ly, coreRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Actualizar síntesis de audio con parámetros suavizados y protegidos
+        synth.updateFromChaos(state.leader, now);
+
+        // Actualizar telemetría y osciloscopio
+        if (now - lastTelemetryTime > 65) {
+            lastTelemetryTime = now;
+            document.getElementById('coordX').textContent = state.leader.x.toFixed(2);
+            document.getElementById('coordY').textContent = state.leader.y.toFixed(2);
+            document.getElementById('coordZ').textContent = state.leader.z.toFixed(2);
+            document.getElementById('velTelemetry').textContent = `v: ${Math.round(state.leader.speed * 100)}%`;
+            drawOscilloscope();
+        }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 7. CONTROLES DE CÁMARA ORBITAL (RATÓN Y TÁCTIL)
+    // ----------------------------------------------------------------------------
+    canvas.addEventListener('mousedown', (e) => {
+        state.isDragging = true;
+        state.lastPointerX = e.clientX;
+        state.lastPointerY = e.clientY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!state.isDragging) return;
+        const dx = e.clientX - state.lastPointerX;
+        const dy = e.clientY - state.lastPointerY;
+        state.rotY += dx * 0.0065;
+        state.rotX = clamp(state.rotX + dy * 0.0065, -Math.PI * 0.48, Math.PI * 0.48);
+        state.lastPointerX = e.clientX;
+        state.lastPointerY = e.clientY;
+    });
+
+    window.addEventListener('mouseup', () => {
+        state.isDragging = false;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY > 0 ? 0.92 : 1.08;
+        state.zoom = clamp(state.zoom * factor, 0.3, 3.5);
+    }, { passive: false });
+
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            state.isDragging = true;
+            state.lastPointerX = e.touches[0].clientX;
+            state.lastPointerY = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+            state.isDragging = false;
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            state.pinchDist = Math.hypot(dx, dy);
+        }
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && state.isDragging) {
+            const dx = e.touches[0].clientX - state.lastPointerX;
+            const dy = e.touches[0].clientY - state.lastPointerY;
+            state.rotY += dx * 0.0075;
+            state.rotX = clamp(state.rotX + dy * 0.0075, -Math.PI * 0.48, Math.PI * 0.48);
+            state.lastPointerX = e.touches[0].clientX;
+            state.lastPointerY = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.hypot(dx, dy);
+            if (state.pinchDist > 0) {
+                state.zoom = clamp(state.zoom * (dist / state.pinchDist), 0.3, 3.5);
+            }
+            state.pinchDist = dist;
+        }
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', () => {
+        state.isDragging = false;
+        state.pinchDist = 0;
+    });
+
+    // ----------------------------------------------------------------------------
+    // 8. CONTROLES DE LA INTERFAZ DE USUARIO (UI)
+    // ----------------------------------------------------------------------------
+    function showToast(msg) {
+        const toast = document.getElementById('toastNotification');
+        const hud = document.getElementById('soundParticleHud');
+        toast.textContent = msg;
+        toast.classList.remove('opacity-0', 'translate-y-3');
+        if (hud) hud.classList.add('opacity-0');
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-3');
+            if (hud) hud.classList.remove('opacity-0');
+        }, 2600);
+    }
+
+    function renderEquationParamsUI() {
+        const attr = ATTRACTORS[state.attractorKey];
+        document.getElementById('attractorSubtitle').textContent = attr.equation;
+
+        const container = document.getElementById('equationParamsContainer');
+        container.innerHTML = '';
+
+        Object.entries(attr.params).forEach(([key, param]) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'space-y-1';
+            wrapper.innerHTML = `
+                <div class="flex justify-between text-xs">
+                    <span class="text-slate-300">${param.label}</span>
+                    <span id="paramVal_${key}" class="font-mono-tech text-sky-400">${param.value}</span>
+                </div>
+                <input type="range" id="paramSlider_${key}" min="${param.min}" max="${param.max}" step="${param.step}" value="${param.value}">
+            `;
+            container.appendChild(wrapper);
+
+            const slider = wrapper.querySelector('input');
+            const label = wrapper.querySelector(`#paramVal_${key}`);
+            slider.addEventListener('input', (e) => {
+                const v = parseFloat(e.target.value);
+                param.value = v;
+                label.textContent = v;
+            });
+        });
+    }
+
+    // Botón de Audio Principal
+    const audioToggleBtn = document.getElementById('audioToggleBtn');
+    const audioIcon = document.getElementById('audioIcon');
+    const audioBtnText = document.getElementById('audioBtnText');
+
+    audioToggleBtn.addEventListener('click', async () => {
+        const active = await synth.toggle();
+        if (active) {
+            audioIcon.classList.remove('bg-rose-500');
+            audioIcon.classList.add('bg-emerald-400');
+            audioBtnText.textContent = 'Silenciar Audio';
+            audioToggleBtn.classList.add('audio-active-glow', 'bg-sky-500/20');
+            showToast('Síntesis caótica activa (Limitador maestro -4 dB)');
+        } else {
+            audioIcon.classList.remove('bg-emerald-400');
+            audioIcon.classList.add('bg-rose-500');
+            audioBtnText.textContent = 'Iniciar Audio Caótico';
+            audioToggleBtn.classList.remove('audio-active-glow', 'bg-sky-500/20');
+            showToast('Audio silenciado');
+        }
+    });
+
+    // Dispersar partículas y capturar PNG
+    document.getElementById('resetParticlesBtn').addEventListener('click', () => {
+        initParticles(true);
+        showToast('Condiciones iniciales dispersadas');
+    });
+
+    document.getElementById('snapshotBtn').addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = `caos-sonoro-${state.attractorKey}-${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('Captura PNG descargada');
+    });
+
+    // Colapsar/Expandir panel lateral
+    const sidebar = document.getElementById('controlSidebar');
+    document.getElementById('toggleSidebarBtn').addEventListener('click', () => {
+        sidebar.classList.toggle('translate-x-[120%]');
+        sidebar.classList.toggle('opacity-0');
+        sidebar.classList.toggle('pointer-events-none');
+    });
+
+    // Navegación por pestañas
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach((b) => {
+                b.classList.remove('bg-sky-500/20', 'text-sky-300', 'border', 'border-sky-400/30');
+                b.classList.add('text-slate-400');
+            });
+            btn.classList.add('bg-sky-500/20', 'text-sky-300', 'border', 'border-sky-400/30');
+            btn.classList.remove('text-slate-400');
+
+            const target = btn.dataset.tab;
+            document.getElementById('tab-attractor').classList.toggle('hidden', target !== 'attractor');
+            document.getElementById('tab-audio').classList.toggle('hidden', target !== 'audio');
+        });
+    });
+
+    // Selector de Atractor y Restaurar Parámetros
+    document.getElementById('attractorSelect').addEventListener('change', (e) => {
+        state.attractorKey = e.target.value;
+        renderEquationParamsUI();
+        initParticles(true);
+        showToast(`Atractor cambiado a ${ATTRACTORS[state.attractorKey].name}`);
+    });
+
+    document.getElementById('resetParamsBtn').addEventListener('click', () => {
+        const attr = ATTRACTORS[state.attractorKey];
+        Object.values(attr.params).forEach((p) => { p.value = p.default; });
+        renderEquationParamsUI();
+        initParticles(true);
+        showToast('Constantes restauradas');
+    });
+
+    // Controles visuales
+    document.getElementById('paletteSelect').addEventListener('change', (e) => {
+        state.palette = e.target.value;
+    });
+
+    document.getElementById('simSpeedSlider').addEventListener('input', (e) => {
+        state.simSpeed = parseFloat(e.target.value);
+        document.getElementById('simSpeedVal').textContent = `${state.simSpeed.toFixed(2)}x`;
+    });
+
+    document.getElementById('trailLengthSlider').addEventListener('input', (e) => {
+        const v = parseFloat(e.target.value);
+        // Invertimos visualmente: slider alto = estela larga (menor alpha de borrado)
+        state.trailFade = clamp(0.30 - v, 0.02, 0.28);
+        const label = v > 0.21 ? 'Larga' : v > 0.11 ? 'Media' : 'Corta';
+        document.getElementById('trailLengthVal').textContent = label;
+    });
+
+    document.getElementById('particleCountSlider').addEventListener('input', (e) => {
+        state.particleCount = parseInt(e.target.value, 10);
+        document.getElementById('particleCountVal').textContent = state.particleCount;
+        initParticles(false);
+    });
+
+    document.getElementById('autoRotateToggle').addEventListener('change', (e) => {
+        state.autoRotate = e.target.checked;
+    });
+
+    // Controles de audio
+    document.getElementById('synthModeSelect').addEventListener('change', (e) => {
+        synth.mode = e.target.value;
+        synth.applyModeMix();
+    });
+
+    document.getElementById('scaleSelect').addEventListener('change', (e) => {
+        synth.scale = e.target.value;
+    });
+
+    document.getElementById('masterGainSlider').addEventListener('input', (e) => {
+        const v = parseFloat(e.target.value);
+        synth.setMasterVolume(v);
+        document.getElementById('masterGainVal').textContent = `${Math.round(v * 100)}%`;
+    });
+
+    document.getElementById('baseFreqSlider').addEventListener('input', (e) => {
+        synth.baseFreq = parseFloat(e.target.value);
+        document.getElementById('baseFreqVal').textContent = `${synth.baseFreq} Hz`;
+    });
+
+    document.getElementById('filterQSlider').addEventListener('input', (e) => {
+        const v = parseFloat(e.target.value);
+        synth.setFilterQ(v);
+        document.getElementById('filterQVal').textContent = v.toFixed(1);
+    });
+
+    document.getElementById('spaceMixSlider').addEventListener('input', (e) => {
+        const v = parseFloat(e.target.value);
+        synth.setSpaceMix(v);
+        document.getElementById('spaceMixVal').textContent = `${Math.round(v * 100)}%`;
+    });
+
+    // Inicialización al cargar la ventana
+    window.addEventListener('resize', resizeCanvases);
+    window.onload = function () {
+        resizeCanvases();
+        renderEquationParamsUI();
+        initParticles(true);
+        requestAnimationFrame(animate);
+    };
+    </script>
+</body>
+</html>

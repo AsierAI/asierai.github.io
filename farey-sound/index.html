@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Diagrama de Farey — Instrumento Microtonal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #090b10;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            touch-action: none; /* Evita scroll y zoom táctil */
+        }
+
+        #fareyCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Estilo de vidrio esmerilado para paneles flotantes */
+        .glass-panel {
+            background: rgba(13, 17, 26, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+        }
+
+        /* Sliders personalizados */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.12);
+            height: 6px;
+            border-radius: 999px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+        }
+    </style>
+</head>
+<body class="relative">
+
+    <!-- Lienzo principal a pantalla completa -->
+    <canvas id="fareyCanvas"></canvas>
+
+    <!-- HUD Superior Compacto -->
+    <header class="fixed top-3 left-3 right-3 z-20 flex items-center justify-between gap-2 pointer-events-none">
+        <!-- Visor de nota y ratio activo -->
+        <div class="glass-panel rounded-2xl px-3.5 py-2 flex items-center gap-3 pointer-events-auto transition-all">
+            <div class="flex flex-col">
+                <span class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Fracción / Nivel</span>
+                <div class="flex items-baseline gap-1.5">
+                    <span id="hudFraction" class="mono text-lg sm:text-xl font-bold text-sky-400">—</span>
+                    <span id="hudOrder" class="mono text-xs text-slate-400">q=—</span>
+                </div>
+            </div>
+
+            <div class="h-7 w-px bg-white/10"></div>
+
+            <div class="flex flex-col">
+                <span class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Ratio</span>
+                <span id="hudRatio" class="mono text-sm sm:text-base font-semibold text-amber-300">— : —</span>
+            </div>
+
+            <div class="h-7 w-px bg-white/10 hidden xs:block"></div>
+
+            <div class="flex flex-col">
+                <span class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Frecuencia</span>
+                <div class="flex items-baseline gap-1.5">
+                    <span id="hudFreq" class="mono text-sm sm:text-base font-semibold text-emerald-300">— Hz</span>
+                    <span id="hudCents" class="mono text-[11px] text-slate-400 hidden sm:inline">0c</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botones rápidos de Bordón y Ajustes -->
+        <div class="flex items-center gap-2 pointer-events-auto">
+            <button id="btnDroneQuick" title="Activar/Desactivar Bordón en f0"
+                class="glass-panel rounded-2xl px-3 py-2.5 text-xs font-semibold flex items-center gap-1.5 text-slate-300 hover:text-white active:scale-95 transition">
+                <span id="droneDot" class="w-2 h-2 rounded-full bg-slate-500 transition-colors"></span>
+                <span>Bordón</span>
+            </button>
+
+            <button id="btnToggleSettings" aria-label="Abrir ajustes"
+                class="glass-panel rounded-2xl p-2.5 text-slate-200 hover:text-sky-400 active:scale-95 transition flex items-center gap-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line>
+                    <line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line>
+                    <line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line>
+                    <line x1="17" y1="16" x2="23" y2="16"></line>
+                </svg>
+                <span class="text-xs font-semibold hidden sm:inline">Ajustes</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Panel de Ajustes Colapsable -->
+    <aside id="settingsDrawer"
+        class="fixed top-20 right-3 left-3 sm:left-auto sm:w-80 z-30 glass-panel rounded-2xl p-4 transition-all duration-200 opacity-0 pointer-events-none translate-y-[-8px]">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Parámetros del Diagrama</h2>
+            <button id="btnCloseSettings" class="text-slate-400 hover:text-white p-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <div class="space-y-4 text-xs">
+            <!-- Orden Máximo N -->
+            <div>
+                <div class="flex justify-between mb-1.5">
+                    <span class="text-slate-300 font-medium">Orden máximo (altura q)</span>
+                    <span id="labelMaxOrder" class="mono font-bold text-sky-400">N = 12 (47 pts)</span>
+                </div>
+                <input id="sliderOrder" type="range" min="6" max="18" value="12" class="w-full">
+                <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                    <span>6 (Abierto)</span>
+                    <span>12 (Equilibrado)</span>
+                    <span>18 (Denso)</span>
+                </div>
+            </div>
+
+            <!-- Modo de Ratio Musical -->
+            <div>
+                <span class="block text-slate-300 font-medium mb-1.5">Fórmula de frecuencia</span>
+                <div class="grid grid-cols-3 gap-1.5 bg-black/30 p-1 rounded-xl">
+                    <button data-mode="octave" class="mode-btn py-1.5 px-2 rounded-lg font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/40 transition">
+                        1 + p/q
+                    </button>
+                    <button data-mode="direct" class="mode-btn py-1.5 px-2 rounded-lg font-semibold text-slate-400 hover:text-white transition">
+                        p/q
+                    </button>
+                    <button data-mode="subharmonic" class="mode-btn py-1.5 px-2 rounded-lg font-semibold text-slate-400 hover:text-white transition">
+                        2q/(q+p)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Frecuencia Fundamental f0 -->
+            <div>
+                <span class="block text-slate-300 font-medium mb-1.5">Fundamental (f₀)</span>
+                <div class="grid grid-cols-4 gap-1.5 bg-black/30 p-1 rounded-xl">
+                    <button data-freq="130.81" class="freq-btn py-1.5 rounded-lg mono text-[11px] font-semibold text-slate-400 hover:text-white transition">130.8</button>
+                    <button data-freq="220.00" class="freq-btn py-1.5 rounded-lg mono text-[11px] font-semibold text-slate-400 hover:text-white transition">220</button>
+                    <button data-freq="261.63" class="freq-btn py-1.5 rounded-lg mono text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 transition">261.6</button>
+                    <button data-freq="432.00" class="freq-btn py-1.5 rounded-lg mono text-[11px] font-semibold text-slate-400 hover:text-white transition">432</button>
+                </div>
+            </div>
+
+            <!-- Opciones Visuales -->
+            <div class="pt-1 border-t border-white/10 flex items-center justify-between gap-2">
+                <button id="btnToggleLines" class="flex-1 py-2 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 font-medium flex items-center justify-center gap-1.5 transition">
+                    <span id="dotLines" class="w-2 h-2 rounded-full bg-sky-400"></span>
+                    <span>Red medianta</span>
+                </button>
+                <button id="btnToggleLabels" class="flex-1 py-2 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 font-medium flex items-center justify-center gap-1.5 transition">
+                    <span id="dotLabels" class="w-2 h-2 rounded-full bg-sky-400"></span>
+                    <span>Etiquetas</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Barra inferior compacta: Secuenciador de 3 Notas Activas + Control de Velocidad -->
+    <footer class="fixed bottom-2.5 left-2.5 right-2.5 z-20 flex flex-col gap-1.5 pointer-events-none">
+        <div class="glass-panel rounded-2xl px-3 py-2 flex items-center justify-between gap-2 pointer-events-auto">
+            <!-- Play/Pausa + Mutación manual -->
+            <div class="flex items-center gap-1.5">
+                <button id="btnPlaySeq" title="Reproducir / Pausar secuencia de 3 notas"
+                    class="w-9 h-9 rounded-xl bg-sky-500/25 hover:bg-sky-500/35 border border-sky-400/40 text-sky-300 flex items-center justify-center active:scale-95 transition">
+                    <svg id="iconPlay" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 hidden" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="6 4 20 12 6 20 6 4"></polygon>
+                    </svg>
+                    <svg id="iconPause" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                        <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+                    </svg>
+                </button>
+
+                <button id="btnMutateNow" title="Reemplazar ahora una nota por probabilidad armónica"
+                    class="px-2.5 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-semibold text-amber-300 active:scale-95 transition">
+                    Mutar
+                </button>
+            </div>
+
+            <!-- 3 Slots de Notas Activas (0, 1, 2) -->
+            <div id="activeSlotsContainer" class="grid grid-cols-3 gap-1.5 flex-1 max-w-sm">
+                <button data-slot="0" class="seq-slot rounded-xl px-2 py-1 bg-white/5 border border-white/10 text-left transition flex flex-col justify-center">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Nota 1</span>
+                        <span class="slot-harmonicity text-[9px] mono text-amber-300/80"></span>
+                    </div>
+                    <span class="slot-frac mono text-xs sm:text-sm font-bold text-white truncate">—</span>
+                </button>
+
+                <button data-slot="1" class="seq-slot rounded-xl px-2 py-1 bg-white/5 border border-white/10 text-left transition flex flex-col justify-center">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Nota 2</span>
+                        <span class="slot-harmonicity text-[9px] mono text-amber-300/80"></span>
+                    </div>
+                    <span class="slot-frac mono text-xs sm:text-sm font-bold text-white truncate">—</span>
+                </button>
+
+                <button data-slot="2" class="seq-slot rounded-xl px-2 py-1 bg-white/5 border border-white/10 text-left transition flex flex-col justify-center">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Nota 3</span>
+                        <span class="slot-harmonicity text-[9px] mono text-amber-300/80"></span>
+                    </div>
+                    <span class="slot-frac mono text-xs sm:text-sm font-bold text-white truncate">—</span>
+                </button>
+            </div>
+
+            <!-- Control compacto de Velocidad (BPM / ms) -->
+            <div class="flex flex-col items-end min-w-[74px] sm:min-w-[96px]">
+                <div class="flex items-baseline gap-1">
+                    <span id="labelTempo" class="mono text-xs font-bold text-sky-300">210 BPM</span>
+                </div>
+                <input id="sliderTempo" type="range" min="70" max="420" step="5" value="210" class="w-full mt-1">
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        /**
+         * INSTRUMENTO MICROTONAL: DIAGRAMA DE FAREY POR NIVELES
+         * Arquitectura:
+         * 1. Generación matemática de fracciones irreducibles p/q hasta orden N
+         *    y cálculo de sus progenitores mediantos exactos (a/b y c/d con bc - ad = 1).
+         * 2. Cálculo de armonicidad por nodo y secuenciador cíclico de 3 notas activas
+         *    con sustitución aleatoria ponderada al completar cada vuelta de 3 pasos.
+         * 3. Motor de audio polifónico con Web Audio API (osciladores suaves + delay estéreo + bordón).
+         * 4. Motor gráfico Canvas 2D con soporte multitáctil (Pointer Events) y ondas reactivas.
+         */
+
+        // --- ESTADO GLOBAL ---
+        const state = {
+            maxOrder: 14,
+            baseFreq: 261.63,     // C4
+            ratioMode: 'octave',  // 'octave' | 'direct' | 'subharmonic'
+            showLines: true,
+            showLabels: true,
+            droneActive: false,
+            nodes: [],
+            edges: [],
+            activePointers: new Map(), // pointerId -> { node, x, y, trail: [] }
+            ripples: [],               // Ondas expansivas visuales
+            lastSelectedNode: null,
+            settingsOpen: false,
+            firstTouchDone: false,
+
+            // Secuenciador de 3 notas activas
+            seqPlaying: true,
+            seqBpm: 210,
+            activeSlots: [null, null, null], // 3 nodos activos
+            currentSlotIndex: 0,             // Paso actual dentro del ciclo (0, 1, 2)
+            targetedSlotForTouch: 0,         // Qué slot reemplaza si el usuario toca un punto
+            lastStepTime: 0,
+            cycleCounter: 0
+        };
+
+        // --- REFERENCIAS DOM ---
+        const canvas = document.getElementById('fareyCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const hudFraction = document.getElementById('hudFraction');
+        const hudOrder = document.getElementById('hudOrder');
+        const hudRatio = document.getElementById('hudRatio');
+        const hudFreq = document.getElementById('hudFreq');
+        const hudCents = document.getElementById('hudCents');
+
+        const settingsDrawer = document.getElementById('settingsDrawer');
+        const btnToggleSettings = document.getElementById('btnToggleSettings');
+        const btnCloseSettings = document.getElementById('btnCloseSettings');
+        const sliderOrder = document.getElementById('sliderOrder');
+        const labelMaxOrder = document.getElementById('labelMaxOrder');
+        const btnDroneQuick = document.getElementById('btnDroneQuick');
+        const droneDot = document.getElementById('droneDot');
+        const btnToggleLines = document.getElementById('btnToggleLines');
+        const dotLines = document.getElementById('dotLines');
+        const btnToggleLabels = document.getElementById('btnToggleLabels');
+        const dotLabels = document.getElementById('dotLabels');
+
+        const btnPlaySeq = document.getElementById('btnPlaySeq');
+        const iconPlay = document.getElementById('iconPlay');
+        const iconPause = document.getElementById('iconPause');
+        const btnMutateNow = document.getElementById('btnMutateNow');
+        const sliderTempo = document.getElementById('sliderTempo');
+        const labelTempo = document.getElementById('labelTempo');
+        const slotButtons = Array.from(document.querySelectorAll('.seq-slot'));
+
+        // --- MOTOR DE AUDIO (WEB AUDIO API) ---
+        class FareySynth {
+            constructor() {
+                this.ctx = null;
+                this.masterGain = null;
+                this.delayNode = null;
+                this.droneOsc1 = null;
+                this.droneOsc2 = null;
+                this.droneGain = null;
+            }
+
+            init() {
+                if (this.ctx) {
+                    if (this.ctx.state === 'suspended') {
+                        this.ctx.resume();
+                    }
+                    return;
+                }
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioCtx();
+
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.value = 0.28;
+
+                // Efecto de eco espacial suave para dar profundidad en móvil/auriculares
+                this.delayNode = this.ctx.createDelay(1.0);
+                this.delayNode.delayTime.value = 0.24;
+
+                const feedback = this.ctx.createGain();
+                feedback.gain.value = 0.26;
+
+                const delayFilter = this.ctx.createBiquadFilter();
+                delayFilter.type = 'lowpass';
+                delayFilter.frequency.value = 1800;
+
+                this.delayNode.connect(feedback);
+                feedback.connect(delayFilter);
+                delayFilter.connect(this.delayNode);
+                delayFilter.connect(this.masterGain);
+
+                this.masterGain.connect(this.ctx.destination);
+            }
+
+            playNote(freq, qOrder = 1) {
+                if (!this.ctx) this.init();
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+
+                const now = this.ctx.currentTime;
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const subGain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+                const env = this.ctx.createGain();
+
+                osc1.type = 'triangle';
+                osc1.frequency.setValueAtTime(freq, now);
+
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(freq * 2, now);
+                subGain.gain.value = 0.14;
+
+                // Filtro dinámico: notas más agudas o de orden alto son más aterciopeladas
+                filter.type = 'lowpass';
+                const cutoff = Math.min(3400, Math.max(700, freq * 3.5));
+                filter.frequency.setValueAtTime(cutoff, now);
+                filter.frequency.exponentialRampToValueAtTime(Math.max(350, freq * 1.4), now + 0.9);
+
+                // Envolvente ADSR tipo arpa / campana cristalina
+                const peak = Math.max(0.11, 0.22 - (qOrder * 0.005));
+                env.gain.setValueAtTime(0.0001, now);
+                env.gain.linearRampToValueAtTime(peak, now + 0.015);
+                env.gain.exponentialRampToValueAtTime(peak * 0.45, now + 0.22);
+                env.gain.exponentialRampToValueAtTime(0.0001, now + 1.35);
+
+                osc1.connect(filter);
+                osc2.connect(subGain);
+                subGain.connect(filter);
+                filter.connect(env);
+
+                env.connect(this.masterGain);
+                env.connect(this.delayNode);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 1.4);
+                osc2.stop(now + 1.4);
+            }
+
+            setDrone(active, baseFreq) {
+                if (!this.ctx) this.init();
+                const now = this.ctx.currentTime;
+
+                if (active) {
+                    if (!this.droneOsc1) {
+                        this.droneOsc1 = this.ctx.createOscillator();
+                        this.droneOsc2 = this.ctx.createOscillator();
+                        const droneFilter = this.ctx.createBiquadFilter();
+                        this.droneGain = this.ctx.createGain();
+
+                        this.droneOsc1.type = 'sine';
+                        this.droneOsc2.type = 'triangle';
+
+                        droneFilter.type = 'lowpass';
+                        droneFilter.frequency.value = 420;
+
+                        this.droneGain.gain.setValueAtTime(0.0001, now);
+                        this.droneGain.gain.linearRampToValueAtTime(0.13, now + 0.4);
+
+                        const subDroneGain = this.ctx.createGain();
+                        subDroneGain.gain.value = 0.25;
+
+                        this.droneOsc1.connect(droneFilter);
+                        this.droneOsc2.connect(subDroneGain);
+                        subDroneGain.connect(droneFilter);
+                        droneFilter.connect(this.droneGain);
+                        this.droneGain.connect(this.masterGain);
+
+                        this.droneOsc1.start(now);
+                        this.droneOsc2.start(now);
+                    }
+                    this.droneOsc1.frequency.setTargetAtTime(baseFreq, now, 0.08);
+                    this.droneOsc2.frequency.setTargetAtTime(baseFreq * 0.5, now, 0.08);
+                } else if (this.droneOsc1) {
+                    const g = this.droneGain;
+                    const o1 = this.droneOsc1;
+                    const o2 = this.droneOsc2;
+                    g.gain.setTargetAtTime(0.0001, now, 0.1);
+                    setTimeout(() => {
+                        try { o1.stop(); o2.stop(); } catch (e) {}
+                    }, 350);
+                    this.droneOsc1 = null;
+                    this.droneOsc2 = null;
+                    this.droneGain = null;
+                }
+            }
+        }
+
+        const synth = new FareySynth();
+
+        // --- MATEMÁTICAS DEL DIAGRAMA DE FAREY ---
+        function gcd(a, b) {
+            while (b !== 0) {
+                const t = b;
+                b = a % b;
+                a = t;
+            }
+            return a;
+        }
+
+        /**
+         * Calcula los dos progenitores mediantos a/b y c/d (con a/b < p/q < c/d y bc - ad = 1)
+         * de una fracción irreducible p/q usando el algoritmo extendido de Euclides.
+         */
+        function findMediants(p, q) {
+            if (p === 0 && q === 1) return { left: null, right: null };
+            if (p === 1 && q === 1) return { left: null, right: null };
+
+            let a = 0, b = 1;
+            let c = 1, d = 1;
+            let left = null;
+            let right = null;
+
+            while (b <= q && d <= q) {
+                const medP = a + c;
+                const medQ = b + d;
+                if (medP === p && medQ === q) {
+                    left = `${a}/${b}`;
+                    right = `${c}/${d}`;
+                    break;
+                }
+                if (p * medQ < medP * q) {
+                    right = `${medP}/${medQ}`;
+                    c = medP;
+                    d = medQ;
+                } else {
+                    left = `${medP}/${medQ}`;
+                    a = medP;
+                    b = medQ;
+                }
+            }
+            return { left, right };
+        }
+
+        /**
+         * Calcula la frecuencia en Hz, el ratio y los cents respecto a f0 para una fracción p/q
+         */
+        function getMusicalData(node) {
+            const { p, q } = node;
+            let ratioNum = q + p;
+            let ratioDen = q;
+            let mult = 1 + p / q;
+
+            if (state.ratioMode === 'direct') {
+                ratioNum = p === 0 ? 1 : p;
+                ratioDen = q;
+                mult = p === 0 ? 1 : p / q;
+            } else if (state.ratioMode === 'subharmonic') {
+                ratioNum = 2 * q;
+                ratioDen = q + p;
+                mult = (2 * q) / (q + p);
+            }
+
+            const freq = state.baseFreq * mult;
+            const cents = Math.round(1200 * Math.log2(Math.max(0.0001, mult)));
+            return {
+                freq,
+                mult,
+                cents,
+                ratioText: `${ratioNum} : ${ratioDen}`
+            };
+        }
+
+        /**
+         * Calcula un peso de armonicidad positivo para cada fracción p/q:
+         * - Denominador q pequeño => mayor consonancia y simplicidad armónica.
+         * - Cercanía a intervalos justos simples (1/2, 1/3, 2/3, 1/4, 3/4, 1/5, 2/5, 3/5, 4/5) => bonus armónico.
+         */
+        function computeHarmonicWeight(node) {
+            const { p, q, val } = node;
+            // Base inversamente proporcional al orden/denominador q
+            let weight = 1.0 / Math.pow(Math.max(1, q), 1.45);
+
+            // Bonus extra para fracciones clásicas de simplicidad armónica
+            const simpleFractions = [
+                { v: 0.5, bonus: 2.4 },   // 1/2 -> 3:2 quinta justa
+                { v: 1 / 3, bonus: 1.9 }, // 1/3 -> 4:3 cuarta justa
+                { v: 2 / 3, bonus: 1.8 }, // 2/3 -> 5:3 sexta mayor justa
+                { v: 0.25, bonus: 1.6 },  // 1/4 -> 5:4 tercera mayor justa
+                { v: 0.75, bonus: 1.5 },  // 3/4 -> 7:4 séptima armónica
+                { v: 0.2, bonus: 1.35 },  // 1/5 -> 6:5 tercera menor justa
+                { v: 0.4, bonus: 1.3 },   // 2/5 -> 7:5 tritono armónico
+                { v: 0.6, bonus: 1.3 },   // 3/5 -> 8:5 sexta menor justa
+                { v: 0.8, bonus: 1.25 }   // 4/5 -> 9:5 séptima menor justa
+            ];
+
+            for (const sf of simpleFractions) {
+                const dist = Math.abs(val - sf.v);
+                if (dist < 0.04) {
+                    weight += sf.bonus * (1 - dist / 0.04);
+                }
+            }
+
+            // Ligerísimo impulso a bordes 0/1 y 1/1 para anclar la fundamental y octava
+            if (p === 0 || (p === 1 && q === 1)) {
+                weight *= 1.25;
+            }
+
+            return Math.max(0.002, weight);
+        }
+
+        /**
+         * Selecciona aleatoriamente un nodo del diagrama ponderado por su armonicidad,
+         * evitando duplicar exactamente los que ya están en los otros slots activos.
+         */
+        function pickWeightedHarmonicNode(excludeIds = new Set()) {
+            const candidates = state.nodes.filter(n => !excludeIds.has(n.id));
+            const pool = candidates.length > 0 ? candidates : state.nodes;
+
+            let totalWeight = 0;
+            const weights = pool.map(node => {
+                const w = node.harmonicWeight || computeHarmonicWeight(node);
+                totalWeight += w;
+                return w;
+            });
+
+            let r = Math.random() * totalWeight;
+            for (let i = 0; i < pool.length; i++) {
+                r -= weights[i];
+                if (r <= 0) return pool[i];
+            }
+            return pool[pool.length - 1];
+        }
+
+        /**
+         * Inicializa o reajusta el conjunto de 3 notas activas tras reconstruir el grafo
+         */
+        function initActiveTriad() {
+            if (!state.nodes.length) return;
+            const chosen = [];
+            const usedIds = new Set();
+
+            // Preferir una tríada consonante inicial si existe (p.ej. 0/1, 1/2, 1/3)
+            const preferredIds = ['0/1', '1/2', '1/3'];
+            for (const pid of preferredIds) {
+                if (state.nodeMap.has(pid) && chosen.length < 3) {
+                    const n = state.nodeMap.get(pid);
+                    chosen.push(n);
+                    usedIds.add(n.id);
+                }
+            }
+
+            while (chosen.length < 3) {
+                const nextNode = pickWeightedHarmonicNode(usedIds);
+                chosen.push(nextNode);
+                usedIds.add(nextNode.id);
+            }
+
+            state.activeSlots = chosen;
+            state.currentSlotIndex = 0;
+            updateSlotsUI();
+        }
+
+        /**
+         * Reemplaza aleatoriamente una de las 3 notas activas por otra ponderada por armonicidad
+         */
+        function mutateOneActiveSlot(specificSlotIndex = null) {
+            if (state.activeSlots.length < 3 || !state.nodes.length) return;
+
+            const slotIdx = typeof specificSlotIndex === 'number'
+                ? specificSlotIndex
+                : Math.floor(Math.random() * 3);
+
+            const otherIds = new Set(
+                state.activeSlots
+                    .filter((_, idx) => idx !== slotIdx)
+                    .map(n => n && n.id)
+                    .filter(Boolean)
+            );
+
+            const replacement = pickWeightedHarmonicNode(otherIds);
+            state.activeSlots[slotIdx] = replacement;
+            replacement.glow = Math.max(replacement.glow, 0.85);
+            state.ripples.push({
+                x: replacement.x,
+                y: replacement.y,
+                radius: 5,
+                maxRadius: 48,
+                alpha: 0.75,
+                color: 'rgba(251, 191, 36, 1)'
+            });
+            updateSlotsUI();
+        }
+
+        /**
+         * Actualiza visualmente los 3 botones de slots en la barra inferior
+         */
+        function updateSlotsUI() {
+            const maxW = Math.max(...state.nodes.map(n => n.harmonicWeight || 1), 1);
+
+            slotButtons.forEach((btn, idx) => {
+                const node = state.activeSlots[idx];
+                const fracEl = btn.querySelector('.slot-frac');
+                const harmEl = btn.querySelector('.slot-harmonicity');
+                const isSoundingNow = state.seqPlaying && state.currentSlotIndex === idx;
+                const isTargetForTouch = state.targetedSlotForTouch === idx;
+
+                if (node) {
+                    fracEl.textContent = node.id;
+                    const harmPct = Math.min(99, Math.max(1, Math.round(((node.harmonicWeight || 0.1) / maxW) * 100)));
+                    harmEl.textContent = `arm ${harmPct}%`;
+                } else {
+                    fracEl.textContent = '—';
+                    harmEl.textContent = '';
+                }
+
+                btn.classList.remove(
+                    'border-sky-400', 'bg-sky-500/20', 'scale-[1.03]',
+                    'border-amber-300/60', 'bg-amber-400/10', 'border-white/10', 'bg-white/5'
+                );
+
+                if (isSoundingNow) {
+                    btn.classList.add('border-sky-400', 'bg-sky-500/20', 'scale-[1.03]');
+                } else if (isTargetForTouch) {
+                    btn.classList.add('border-amber-300/60', 'bg-amber-400/10');
+                } else {
+                    btn.classList.add('border-white/10', 'bg-white/5');
+                }
+            });
+        }
+
+        /**
+         * Avanza un paso del secuenciador cíclico de 3 notas.
+         * Al completar una vuelta completa (3 pasos), reemplaza 1 nota por probabilidad armónica.
+         */
+        function stepSequencer(nowMs) {
+            if (!state.seqPlaying || state.activeSlots.some(n => !n)) return;
+
+            const stepIntervalMs = (60 / state.seqBpm) * 1000;
+            if (nowMs - state.lastStepTime < stepIntervalMs) return;
+            state.lastStepTime = nowMs;
+
+            const slotIdx = state.currentSlotIndex;
+            const nodeToPlay = state.activeSlots[slotIdx];
+            updateSlotsUI();
+            triggerNode(nodeToPlay, { fromSequencer: true, slotIdx });
+
+            // Preparar el siguiente paso del ciclo 0 -> 1 -> 2 -> 0
+            const nextIdx = (slotIdx + 1) % 3;
+            state.currentSlotIndex = nextIdx;
+
+            // Si acabamos de completar el 3er paso (slotIdx === 2), mutamos aleatoriamente 1 de las 3 notas
+            if (slotIdx === 2) {
+                state.cycleCounter += 1;
+                mutateOneActiveSlot();
+            }
+        }
+
+        /**
+         * Genera todos los nodos y aristas del diagrama de Farey hasta maxOrder
+         */
+        function buildFareyGraph() {
+            const N = state.maxOrder;
+            const nodeMap = new Map();
+            const nodes = [];
+
+            // Nivel q = 1: extremos 0/1 y 1/1
+            const n0 = { id: '0/1', p: 0, q: 1, val: 0, leftParent: null, rightParent: null, x: 0, y: 0, glow: 0 };
+            const n1 = { id: '1/1', p: 1, q: 1, val: 1, leftParent: null, rightParent: null, x: 0, y: 0, glow: 0 };
+            n0.harmonicWeight = computeHarmonicWeight(n0);
+            n1.harmonicWeight = computeHarmonicWeight(n1);
+            nodes.push(n0, n1);
+            nodeMap.set('0/1', n0);
+            nodeMap.set('1/1', n1);
+
+            // Niveles q = 2 hasta N
+            for (let q = 2; q <= N; q++) {
+                for (let p = 1; p < q; p++) {
+                    if (gcd(p, q) === 1) {
+                        const id = `${p}/${q}`;
+                        const parents = findMediants(p, q);
+                        const node = {
+                            id,
+                            p,
+                            q,
+                            val: p / q,
+                            leftParent: parents.left,
+                            rightParent: parents.right,
+                            x: 0,
+                            y: 0,
+                            glow: 0
+                        };
+                        node.harmonicWeight = computeHarmonicWeight(node);
+                        nodes.push(node);
+                        nodeMap.set(id, node);
+                    }
+                }
+            }
+
+            // Construir aristas de conexión medianta
+            const edges = [];
+            for (const node of nodes) {
+                if (node.leftParent && nodeMap.has(node.leftParent)) {
+                    edges.push({ from: nodeMap.get(node.leftParent), to: node });
+                }
+                if (node.rightParent && nodeMap.has(node.rightParent)) {
+                    edges.push({ from: nodeMap.get(node.rightParent), to: node });
+                }
+            }
+
+            state.nodes = nodes;
+            state.edges = edges;
+            state.nodeMap = nodeMap;
+            labelMaxOrder.textContent = `N = ${N} (${nodes.length} pts)`;
+            layoutNodes();
+            initActiveTriad();
+        }
+
+        /**
+         * Calcula las coordenadas (x, y) adaptadas al tamaño actual de la pantalla
+         */
+        function layoutNodes() {
+            const dpr = window.devicePixelRatio || 1;
+            const width = canvas.width / dpr;
+            const height = canvas.height / dpr;
+
+            const isMobile = width < 640;
+            const padLeft = isMobile ? 26 : 48;
+            const padRight = isMobile ? 18 : 42;
+            const padTop = 78;    // Espacio para el HUD superior
+            const padBottom = 76; // Espacio para la barra inferior de 3 notas + tempo
+
+            const usableW = Math.max(100, width - padLeft - padRight);
+            const usableH = Math.max(100, height - padTop - padBottom);
+            const denomSpan = Math.max(1, state.maxOrder - 1);
+
+            for (const node of state.nodes) {
+                node.x = padLeft + node.val * usableW;
+                node.y = padTop + ((node.q - 1) / denomSpan) * usableH;
+            }
+        }
+
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = Math.floor(window.innerWidth * dpr);
+            canvas.height = Math.floor(window.innerHeight * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            layoutNodes();
+        }
+
+        // --- PALETA DE COLOR SEGÚN CONSONANCIA / ORDEN q ---
+        function getNodeColor(q, alpha = 1) {
+            // Tonos cálidos/dorados para órdenes bajos (consonancias puras) -> cian/violeta para órdenes altos
+            const t = Math.min(1, (q - 1) / Math.max(1, state.maxOrder - 1));
+            const hue = 42 + t * 225; // 42° (ámbar) -> 195° (cian) -> 267° (violeta)
+            const sat = 88 - t * 12;
+            const light = 64 - t * 8;
+            return `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
+        }
+
+        // --- INTERACCIÓN TÁCTIL Y MULTITOUCH ---
+        function findNearestNode(x, y, maxDist = 48) {
+            let bestNode = null;
+            let bestDistSq = maxDist * maxDist;
+
+            for (const node of state.nodes) {
+                const dx = node.x - x;
+                const dy = node.y - y;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < bestDistSq) {
+                    bestDistSq = distSq;
+                    bestNode = node;
+                }
+            }
+            return bestNode;
+        }
+
+        function triggerNode(node, options = {}) {
+            if (!node) return;
+
+            // Si el usuario toca directamente un punto (no viene del secuenciador), lo asigna al slot objetivo
+            if (!options.fromSequencer) {
+                const targetSlot = state.targetedSlotForTouch % 3;
+                state.activeSlots[targetSlot] = node;
+                state.targetedSlotForTouch = (targetSlot + 1) % 3;
+                updateSlotsUI();
+            }
+
+            const music = getMusicalData(node);
+            synth.playNote(music.freq, node.q);
+
+            node.glow = 1.0;
+            state.lastSelectedNode = node;
+
+            // Iluminar también sus progenitores mediantos
+            if (node.leftParent && state.nodeMap.has(node.leftParent)) {
+                state.nodeMap.get(node.leftParent).glow = Math.max(state.nodeMap.get(node.leftParent).glow, 0.7);
+            }
+            if (node.rightParent && state.nodeMap.has(node.rightParent)) {
+                state.nodeMap.get(node.rightParent).glow = Math.max(state.nodeMap.get(node.rightParent).glow, 0.7);
+            }
+
+            // Onda expansiva
+            state.ripples.push({
+                x: node.x,
+                y: node.y,
+                radius: 6,
+                maxRadius: Math.max(36, 68 - node.q * 2),
+                alpha: 0.9,
+                color: getNodeColor(node.q, 1)
+            });
+
+            // Actualizar HUD superior
+            hudFraction.textContent = node.id;
+            hudOrder.textContent = `q=${node.q}`;
+            hudRatio.textContent = music.ratioText;
+            hudFreq.textContent = `${music.freq.toFixed(1)} Hz`;
+            const sign = music.cents > 0 ? '+' : '';
+            hudCents.textContent = `${sign}${music.cents}c`;
+        }
+
+        function handlePointerDown(e) {
+            e.preventDefault();
+            synth.init();
+            canvas.setPointerCapture(e.pointerId);
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const nearest = findNearestNode(x, y, 54);
+            state.activePointers.set(e.pointerId, {
+                node: nearest,
+                x,
+                y,
+                trail: [{ x, y, alpha: 1.0 }]
+            });
+
+            if (nearest) {
+                triggerNode(nearest);
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (!state.activePointers.has(e.pointerId)) return;
+            e.preventDefault();
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const pointerData = state.activePointers.get(e.pointerId);
+            pointerData.x = x;
+            pointerData.y = y;
+            pointerData.trail.push({ x, y, alpha: 1.0 });
+            if (pointerData.trail.length > 18) {
+                pointerData.trail.shift();
+            }
+
+            // Radio de captura dinámico según densidad de puntos
+            const captureRadius = Math.max(22, 46 - state.maxOrder * 1.2);
+            const nearest = findNearestNode(x, y, captureRadius);
+
+            if (nearest && nearest !== pointerData.node) {
+                pointerData.node = nearest;
+                triggerNode(nearest);
+            } else if (!nearest) {
+                pointerData.node = null;
+            }
+        }
+
+        function handlePointerUp(e) {
+            state.activePointers.delete(e.pointerId);
+        }
+
+        canvas.addEventListener('pointerdown', handlePointerDown);
+        canvas.addEventListener('pointermove', handlePointerMove);
+        canvas.addEventListener('pointerup', handlePointerUp);
+        canvas.addEventListener('pointercancel', handlePointerUp);
+
+        // --- BUCLE DE RENDERIZADO (60 FPS) ---
+        function render(nowMs = performance.now()) {
+            stepSequencer(nowMs);
+
+            const dpr = window.devicePixelRatio || 1;
+            const width = canvas.width / dpr;
+            const height = canvas.height / dpr;
+
+            // Fondo profundo
+            ctx.fillStyle = '#090b10';
+            ctx.fillRect(0, 0, width, height);
+
+            const isMobile = width < 640;
+            const padLeft = isMobile ? 26 : 48;
+            const padRight = isMobile ? 18 : 42;
+            const padTop = 78;
+            const padBottom = 76;
+            const usableH = Math.max(100, height - padTop - padBottom);
+            const denomSpan = Math.max(1, state.maxOrder - 1);
+
+            // 1. Guías horizontales por cada orden q (altura)
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.font = '600 10px "JetBrains Mono", monospace';
+
+            for (let q = 1; q <= state.maxOrder; q++) {
+                const y = padTop + ((q - 1) / denomSpan) * usableH;
+                const isHighlighted = state.lastSelectedNode && state.lastSelectedNode.q === q;
+
+                ctx.beginPath();
+                ctx.moveTo(padLeft - 6, y);
+                ctx.lineTo(width - padRight + 6, y);
+                ctx.strokeStyle = isHighlighted
+                    ? 'rgba(56, 189, 248, 0.25)'
+                    : 'rgba(255, 255, 255, 0.045)';
+                ctx.lineWidth = isHighlighted ? 1.2 : 1;
+                ctx.stroke();
+
+                // Etiqueta de nivel q a la izquierda
+                ctx.fillStyle = isHighlighted ? '#38bdf8' : 'rgba(148, 163, 184, 0.45)';
+                ctx.fillText(`F${q}`, 6, y);
+            }
+
+            // 2. Red geométrica de conexiones mediantas
+            if (state.showLines) {
+                for (const edge of state.edges) {
+                    const isParentHighlight =
+                        state.lastSelectedNode &&
+                        edge.to === state.lastSelectedNode;
+
+                    ctx.beginPath();
+                    ctx.moveTo(edge.from.x, edge.from.y);
+                    ctx.lineTo(edge.to.x, edge.to.y);
+
+                    if (isParentHighlight) {
+                        ctx.strokeStyle = 'rgba(251, 191, 36, 0.75)';
+                        ctx.lineWidth = 1.8;
+                    } else {
+                        ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+                        ctx.lineWidth = 0.85;
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            // 3. Ondas expansivas (ripples)
+            for (let i = state.ripples.length - 1; i >= 0; i--) {
+                const r = state.ripples[i];
+                ctx.beginPath();
+                ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = r.color.replace('1)', `${r.alpha})`);
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                r.radius += (r.maxRadius - r.radius) * 0.12;
+                r.alpha -= 0.025;
+                if (r.alpha <= 0.01) {
+                    state.ripples.splice(i, 1);
+                }
+            }
+
+            // 4. Estelas táctiles multitouch
+            for (const [, pData] of state.activePointers) {
+                if (pData.trail.length > 1) {
+                    for (let i = 1; i < pData.trail.length; i++) {
+                        const pt0 = pData.trail[i - 1];
+                        const pt1 = pData.trail[i];
+                        ctx.beginPath();
+                        ctx.moveTo(pt0.x, pt0.y);
+                        ctx.lineTo(pt1.x, pt1.y);
+                        ctx.strokeStyle = `rgba(56, 189, 248, ${pt1.alpha * 0.45})`;
+                        ctx.lineWidth = 3 * pt1.alpha;
+                        ctx.lineCap = 'round';
+                        ctx.stroke();
+                        pt0.alpha *= 0.88;
+                    }
+                }
+            }
+
+            // 5. Dibujar cada punto (nodo de Farey)
+            ctx.textAlign = 'center';
+            for (const node of state.nodes) {
+                // Decaimiento suave del brillo
+                if (node.glow > 0.005) {
+                    node.glow *= 0.93;
+                } else {
+                    node.glow = 0;
+                }
+
+                // Tamaño proporcional a la consonancia (órdenes bajos más grandes)
+                const baseRadius = Math.max(3.2, 8.5 - node.q * 0.32);
+                const radius = baseRadius + node.glow * 5.5;
+
+                // Halo luminoso si está activo
+                if (node.glow > 0.05) {
+                    const grad = ctx.createRadialGradient(node.x, node.y, radius * 0.2, node.x, node.y, radius * 3.2);
+                    grad.addColorStop(0, getNodeColor(node.q, node.glow * 0.65));
+                    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, radius * 3.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Núcleo del punto
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = node.glow > 0.2
+                    ? '#ffffff'
+                    : getNodeColor(node.q, 0.92);
+                ctx.fill();
+
+                // Borde sutil para puntos principales
+                if (node.q <= 4 || node.glow > 0.15) {
+                    ctx.strokeStyle = getNodeColor(node.q, 0.6);
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                }
+
+                // Anillo distintivo para las 3 notas activas en secuencia
+                const activeSlotIdx = state.activeSlots.findIndex(s => s && s.id === node.id);
+                if (activeSlotIdx !== -1) {
+                    const isCurrent = state.seqPlaying && state.currentSlotIndex === activeSlotIdx;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, radius + (isCurrent ? 6.5 : 4.2), 0, Math.PI * 2);
+                    ctx.strokeStyle = isCurrent
+                        ? 'rgba(56, 189, 248, 0.95)'
+                        : 'rgba(251, 191, 36, 0.72)';
+                    ctx.lineWidth = isCurrent ? 2.2 : 1.4;
+                    ctx.stroke();
+                }
+
+                // Etiquetas de fracciones (órdenes principales o nodo activo)
+                const showThisLabel =
+                    (state.showLabels && node.q <= 5) ||
+                    node.glow > 0.25 ||
+                    node === state.lastSelectedNode;
+
+                if (showThisLabel) {
+                    ctx.font = node.glow > 0.25
+                        ? '700 11px "JetBrains Mono", monospace'
+                        : '500 9.5px "JetBrains Mono", monospace';
+                    ctx.fillStyle = node.glow > 0.25
+                        ? '#ffffff'
+                        : 'rgba(226, 232, 240, 0.72)';
+                    ctx.fillText(node.id, node.x, node.y - radius - 6);
+                }
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        // --- CONTROLES DE INTERFAZ ---
+        function toggleSettings(forceState) {
+            state.settingsOpen = typeof forceState === 'boolean' ? forceState : !state.settingsOpen;
+            if (state.settingsOpen) {
+                settingsDrawer.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-8px]');
+                settingsDrawer.classList.add('opacity-100', 'pointer-events-auto', 'translate-y-0');
+            } else {
+                settingsDrawer.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-8px]');
+                settingsDrawer.classList.remove('opacity-100', 'pointer-events-auto', 'translate-y-0');
+            }
+        }
+
+        btnToggleSettings.addEventListener('click', () => toggleSettings());
+        btnCloseSettings.addEventListener('click', () => toggleSettings(false));
+
+        sliderOrder.addEventListener('input', (e) => {
+            state.maxOrder = parseInt(e.target.value, 10);
+            buildFareyGraph();
+        });
+
+        // Selector de fórmula de ratio
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.ratioMode = btn.dataset.mode;
+                document.querySelectorAll('.mode-btn').forEach(b => {
+                    b.className = 'mode-btn py-1.5 px-2 rounded-lg font-semibold text-slate-400 hover:text-white transition';
+                });
+                btn.className = 'mode-btn py-1.5 px-2 rounded-lg font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/40 transition';
+                if (state.lastSelectedNode) triggerNode(state.lastSelectedNode);
+            });
+        });
+
+        // Selector de frecuencia fundamental f0
+        document.querySelectorAll('.freq-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.baseFreq = parseFloat(btn.dataset.freq);
+                document.querySelectorAll('.freq-btn').forEach(b => {
+                    b.className = 'freq-btn py-1.5 rounded-lg mono text-[11px] font-semibold text-slate-400 hover:text-white transition';
+                });
+                btn.className = 'freq-btn py-1.5 rounded-lg mono text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 transition';
+                if (state.droneActive) {
+                    synth.setDrone(true, state.baseFreq);
+                }
+                if (state.lastSelectedNode) triggerNode(state.lastSelectedNode);
+            });
+        });
+
+        // Botón Bordón continuo
+        btnDroneQuick.addEventListener('click', () => {
+            state.droneActive = !state.droneActive;
+            synth.setDrone(state.droneActive, state.baseFreq);
+            if (state.droneActive) {
+                droneDot.classList.remove('bg-slate-500');
+                droneDot.classList.add('bg-emerald-400', 'shadow-[0_0_8px_#34d399]');
+                btnDroneQuick.classList.add('text-emerald-300', 'border-emerald-400/40');
+            } else {
+                droneDot.classList.add('bg-slate-500');
+                droneDot.classList.remove('bg-emerald-400', 'shadow-[0_0_8px_#34d399]');
+                btnDroneQuick.classList.remove('text-emerald-300', 'border-emerald-400/40');
+            }
+        });
+
+        // Toggles visuales
+        btnToggleLines.addEventListener('click', () => {
+            state.showLines = !state.showLines;
+            dotLines.classList.toggle('bg-sky-400', state.showLines);
+            dotLines.classList.toggle('bg-slate-600', !state.showLines);
+        });
+
+        btnToggleLabels.addEventListener('click', () => {
+            state.showLabels = !state.showLabels;
+            dotLabels.classList.toggle('bg-sky-400', state.showLabels);
+            dotLabels.classList.toggle('bg-slate-600', !state.showLabels);
+        });
+
+        // Controles del secuenciador de 3 notas y velocidad
+        btnPlaySeq.addEventListener('click', () => {
+            synth.init();
+            state.seqPlaying = !state.seqPlaying;
+            iconPlay.classList.toggle('hidden', state.seqPlaying);
+            iconPause.classList.toggle('hidden', !state.seqPlaying);
+            state.lastStepTime = performance.now() - ((60 / state.seqBpm) * 1000);
+            updateSlotsUI();
+        });
+
+        btnMutateNow.addEventListener('click', () => {
+            synth.init();
+            mutateOneActiveSlot(state.targetedSlotForTouch);
+            state.targetedSlotForTouch = (state.targetedSlotForTouch + 1) % 3;
+            updateSlotsUI();
+        });
+
+        sliderTempo.addEventListener('input', (e) => {
+            state.seqBpm = parseInt(e.target.value, 10);
+            labelTempo.textContent = `${state.seqBpm} BPM`;
+        });
+
+        slotButtons.forEach((btn, idx) => {
+            btn.addEventListener('click', () => {
+                synth.init();
+                state.targetedSlotForTouch = idx;
+                const node = state.activeSlots[idx];
+                if (node) {
+                    triggerNode(node, { fromSequencer: true, slotIdx: idx });
+                }
+                updateSlotsUI();
+            });
+        });
+
+        // --- INICIALIZACIÓN ---
+        window.addEventListener('resize', resizeCanvas);
+        window.onload = function () {
+            resizeCanvas();
+            buildFareyGraph();
+            state.lastStepTime = performance.now();
+            requestAnimationFrame(render);
+        };
+    </script>
+</body>
+</html>

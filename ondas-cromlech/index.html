@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador de Ondas 2D — Difracción en Crómlech</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #090d16;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .font-mono-tech {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Personalización de sliders para aspecto de laboratorio */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #1e293b;
+      height: 6px;
+      border-radius: 999px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+      transition: transform 0.1s ease, background-color 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      background: #7dd3fc;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+    }
+    canvas {
+      image-rendering: auto;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-200 selection:bg-sky-500/30">
+
+  <!-- Barra Superior -->
+  <header class="border-b border-slate-800/80 bg-slate-900/70 backdrop-blur-md px-4 py-3 sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-amber-500 p-[1px] shadow-lg shadow-sky-500/10">
+          <div class="w-full h-full bg-slate-950 rounded-[11px] flex items-center justify-center">
+            <!-- Icono SVG de Crómlech y ondas -->
+            <svg class="w-5 h-5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9" stroke-dasharray="4.5 4.9" stroke-linecap="round"/>
+              <path d="M2 12c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="#f59e0b" stroke-width="1.6"/>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-semibold tracking-tight text-white flex items-center gap-2">
+            Simulador de Ondas 2D
+            <span class="text-xs font-mono-tech px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">FDTD</span>
+          </h1>
+          <p class="text-xs text-slate-400 hidden sm:block">Difracción, reflexión e interferencia en un crómlech poligonal de lados alternos</p>
+        </div>
+      </div>
+
+      <!-- Controles rápidos de reproducción -->
+      <div class="flex items-center gap-2">
+        <button id="btnLaunch" class="px-3.5 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 active:scale-[0.98] text-slate-950 font-semibold text-xs sm:text-sm transition shadow-md shadow-sky-500/20 flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          <span>Lanzar frente de onda</span>
+        </button>
+
+        <button id="btnPlayPause" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer" title="Pausar o reanudar simulación">
+          <svg id="iconPause" class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+            <rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>
+          </svg>
+          <svg id="iconPlay" class="w-4 h-4 text-emerald-400 hidden" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          <span id="txtPlayPause" class="hidden md:inline">Pausar</span>
+        </button>
+
+        <button id="btnClear" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-medium text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer" title="Reiniciar campo de ondas">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          <span class="hidden md:inline">Limpiar ondas</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenido Principal -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+    <!-- Área de Visualización del Simulador -->
+    <div class="lg:col-span-8 flex flex-col gap-3">
+      <div class="relative w-full rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
+        <!-- Contenedor con relación de aspecto adaptativa -->
+        <div id="canvasContainer" class="relative w-full aspect-[4/3] sm:aspect-[16/11] bg-black select-none">
+          <canvas id="waveCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+          <!-- Indicador flotante superior izquierdo -->
+          <div class="absolute top-3 left-3 pointer-events-none flex flex-wrap items-center gap-2">
+            <span class="px-2.5 py-1 rounded-md bg-slate-950/75 backdrop-blur-md border border-slate-800/80 text-[11px] font-mono-tech text-slate-300 flex items-center gap-1.5">
+              <span id="statusDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span id="fpsCounter">60 FPS</span>
+            </span>
+            <span class="px-2.5 py-1 rounded-md bg-slate-950/75 backdrop-blur-md border border-slate-800/80 text-[11px] text-slate-300">
+              Crómlech: <strong id="badgeSides" class="text-amber-400">12</strong> lados (<span id="badgeWalls" class="text-sky-400">6</span> muros)
+            </span>
+          </div>
+
+          <!-- Leyenda inferior -->
+          <div class="absolute bottom-3 left-3 right-3 pointer-events-none flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300">
+            <div class="px-2.5 py-1 rounded-md bg-slate-950/75 backdrop-blur-md border border-slate-800/80 flex items-center gap-2">
+              <span class="inline-block w-3 h-1.5 rounded-sm bg-amber-300 border border-amber-500"></span>
+              <span>Lados pares (muros reflectantes)</span>
+              <span class="text-slate-500">|</span>
+              <span class="inline-block w-3 h-1.5 rounded-sm border border-dashed border-slate-500"></span>
+              <span>Lados impares (huecos abiertos)</span>
+            </div>
+            <div class="px-2.5 py-1 rounded-md bg-slate-950/75 backdrop-blur-md border border-slate-800/80 hidden sm:block text-slate-400">
+              Haz clic o arrastra sobre el lienzo para interactuar
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barra de Herramientas del Ratón y Explicación Física -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <!-- Modo de interacción con el ratón -->
+        <div class="rounded-xl bg-slate-900/80 border border-slate-800 p-3.5 flex flex-col justify-between gap-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Herramienta de Puntero</span>
+            <span class="text-[11px] text-sky-400 font-mono-tech">Clic / Arrastrar</span>
+          </div>
+          <div class="grid grid-cols-3 gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800/80">
+            <button type="button" data-tool="wave" class="tool-btn active py-1.5 px-2 rounded-md text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition cursor-pointer">
+              Excitar onda
+            </button>
+            <button type="button" data-tool="wall" class="tool-btn py-1.5 px-2 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition cursor-pointer">
+              Dibujar muro
+            </button>
+            <button type="button" data-tool="erase" class="tool-btn py-1.5 px-2 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition cursor-pointer">
+              Borrar muro
+            </button>
+          </div>
+          <button id="btnClearCustomWalls" class="text-[11px] text-slate-400 hover:text-amber-400 transition self-end cursor-pointer">
+            Limpiar muros dibujados a mano
+          </button>
+        </div>
+
+        <!-- Nota física breve -->
+        <div class="rounded-xl bg-slate-900/80 border border-slate-800 p-3.5 text-xs text-slate-400 leading-relaxed flex flex-col justify-center">
+          <p class="text-slate-200 font-medium mb-1">Fenómeno observado:</p>
+          <p>
+            El frente de onda incidente rebota contra los lados pares (<span class="text-amber-300 font-mono-tech">0, 2, 4...</span>) del polígono y atraviesa los lados impares abiertos, generando patrones de <span class="text-sky-400">difracción e interferencia constructiva/destructiva</span> en el interior y detrás del crómlech.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel de Control Lateral -->
+    <aside class="lg:col-span-4 flex flex-col gap-4">
+
+      <!-- Sección 1: Frente de Onda Incidente -->
+      <section class="rounded-2xl bg-slate-900/85 border border-slate-800 p-4 shadow-xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+            Frente de Onda Incidente
+          </h2>
+          <label class="inline-flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="chkContinuous" class="sr-only peer">
+            <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:rounded-full after:h-4 after:w-4 after:transition-all relative peer-checked:bg-sky-500"></div>
+            <span class="text-xs font-medium text-slate-300">Continuo</span>
+          </label>
+        </div>
+
+        <!-- Tipo de frente de onda -->
+        <div class="space-y-1.5">
+          <label for="waveSourceType" class="block text-xs font-medium text-slate-400">Tipo de fuente externa</label>
+          <select id="waveSourceType" class="w-full rounded-lg bg-slate-950 border border-slate-700/80 px-3 py-2 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-sky-500 transition">
+            <option value="plane_pulse">Pulso plano único (desde la izquierda)</option>
+            <option value="plane_train">Tren de ondas plano (modo continuo)</option>
+            <option value="point_external">Onda puntual externa (izquierda)</option>
+            <option value="top_plane">Pulso plano vertical (desde arriba)</option>
+          </select>
+        </div>
+
+        <!-- Frecuencia / Longitud de onda -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <label for="sliderFreq" class="text-slate-400">Frecuencia / Anchura de pulso</label>
+            <span id="valFreq" class="font-mono-tech text-sky-400">Media</span>
+          </div>
+          <input type="range" id="sliderFreq" min="1" max="10" step="1" value="5" class="w-full">
+        </div>
+
+        <!-- Amplitud del frente -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <label for="sliderAmp" class="text-slate-400">Amplitud de impulso</label>
+            <span id="valAmp" class="font-mono-tech text-sky-400">100%</span>
+          </div>
+          <input type="range" id="sliderAmp" min="30" max="200" step="10" value="120" class="w-full">
+        </div>
+      </section>
+
+      <!-- Sección 2: Geometría del Crómlech -->
+      <section class="rounded-2xl bg-slate-900/85 border border-slate-800 p-4 shadow-xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            Geometría del Crómlech
+          </h2>
+          <label class="inline-flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+            <input type="checkbox" id="chkShowGuides" checked class="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0">
+            <span>Guías impares</span>
+          </label>
+        </div>
+
+        <!-- Número de lados pares -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <label for="sliderSides" class="text-slate-400">Lados del polígono (solo pares)</label>
+            <span id="valSides" class="font-mono-tech text-amber-400 font-semibold">12 lados</span>
+          </div>
+          <input type="range" id="sliderSides" min="4" max="24" step="2" value="12" class="w-full">
+          <div class="flex justify-between text-[10px] font-mono-tech text-slate-500 px-0.5">
+            <span>4</span><span>8</span><span>12</span><span>16</span><span>20</span><span>24</span>
+          </div>
+        </div>
+
+        <!-- Radio del crómlech -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <label for="sliderRadius" class="text-slate-400">Radio del recinto</label>
+            <span id="valRadius" class="font-mono-tech text-amber-400">26%</span>
+          </div>
+          <input type="range" id="sliderRadius" min="12" max="40" step="1" value="26" class="w-full">
+        </div>
+
+        <!-- Grosor de las paredes -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <label for="sliderThickness" class="text-slate-400">Grosor de los bloques</label>
+            <span id="valThickness" class="font-mono-tech text-amber-400">5 px</span>
+          </div>
+          <input type="range" id="sliderThickness" min="2" max="12" step="1" value="5" class="w-full">
+        </div>
+
+        <!-- Rotación del polígono -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <label for="sliderRotation" class="text-slate-400">Orientación angular</label>
+            <span id="valRotation" class="font-mono-tech text-amber-400">15°</span>
+          </div>
+          <input type="range" id="sliderRotation" min="0" max="180" step="5" value="15" class="w-full">
+        </div>
+      </section>
+
+      <!-- Sección 3: Física del Medio y Visualización -->
+      <section class="rounded-2xl bg-slate-900/85 border border-slate-800 p-4 shadow-xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            Medio y Renderizado
+          </h2>
+        </div>
+
+        <!-- Paleta de colores -->
+        <div class="space-y-1.5">
+          <label for="selectPalette" class="block text-xs font-medium text-slate-400">Paleta de amplitud de onda</label>
+          <select id="selectPalette" class="w-full rounded-lg bg-slate-950 border border-slate-700/80 px-3 py-2 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-sky-500 transition">
+            <option value="amber_blue">Cian Profundo — Negro — Ámbar (Contraste)</option>
+            <option value="ocean">Océano Bioluminiscente</option>
+            <option value="scientific">Mapa Térmico Científico (Azul-Blanco-Rojo)</option>
+            <option value="grayscale">Escala de Grises / Interferometría</option>
+          </select>
+        </div>
+
+        <!-- Amortiguación -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <label for="sliderDamping" class="text-slate-400">Amortiguación del medio</label>
+            <span id="valDamping" class="font-mono-tech text-emerald-400">Nula (0.000)</span>
+          </div>
+          <input type="range" id="sliderDamping" min="0" max="10" step="1" value="0" class="w-full">
+        </div>
+
+        <!-- Condiciones de contorno exteriores -->
+        <div class="flex items-center justify-between pt-1">
+          <span class="text-xs text-slate-400">Bordes exteriores de la pantalla</span>
+          <select id="selectBoundary" class="rounded-lg bg-slate-950 border border-slate-700/80 px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+            <option value="absorbing">Absorbentes (Abierto)</option>
+            <option value="reflecting">Reflectantes (Caja cerrada)</option>
+          </select>
+        </div>
+      </section>
+
+    </aside>
+  </main>
+
+  <script>
+    /**
+     * SIMULADOR DE ONDAS 2D CON CRÓMLECH POLIGONAL DE LADOS ALTERNOS
+     * Método: Diferencias Finitas en el Tiempo (FDTD) para la ecuación de onda escalar 2D:
+     *   ∂²u/∂t² = c² (∂²u/∂x² + ∂²u/∂y²) - γ ∂u/∂t
+     * Con capa absorbente exponencial (Sponge Layer) en los bordes para evitar reflexiones artificiales,
+     * y condiciones de contorno de Dirichlet (u = 0) en los muros del crómlech.
+     */
+
+    (function () {
+      // Elementos del DOM
+      const canvas = document.getElementById('waveCanvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const canvasContainer = document.getElementById('canvasContainer');
+
+      // Resolución interna de la rejilla de simulación FDTD (equilibrio óptimo entre detalle y 60 FPS)
+      const NX = 360;
+      const NY = 252;
+      const TOTAL_CELLS = NX * NY;
+
+      // Buffers de estado de la onda (t-1, t, t+1)
+      let uPrev = new Float32Array(TOTAL_CELLS);
+      let uCurr = new Float32Array(TOTAL_CELLS);
+      let uNext = new Float32Array(TOTAL_CELLS);
+
+      // Máscaras de obstáculos:
+      // wallMask: 1 si hay muro total (crómlech o muro dibujado por el usuario), 0 si es espacio libre
+      // cromlechMask: 1 si pertenece al crómlech
+      // customWallMask: 1 si fue dibujado por el usuario
+      const wallMask = new Uint8Array(TOTAL_CELLS);
+      const cromlechMask = new Uint8Array(TOTAL_CELLS);
+      const customWallMask = new Uint8Array(TOTAL_CELLS);
+
+      // Factor de amortiguación espacial por celda (incluye capa absorbente en los bordes)
+      const dampingGrid = new Float32Array(TOTAL_CELLS);
+
+      // Canvas auxiliar fuera de pantalla para renderizar el ImageData a resolución NX x NY
+      const offscreenCanvas = document.createElement('canvas');
+      offscreenCanvas.width = NX;
+      offscreenCanvas.height = NY;
+      const offCtx = offscreenCanvas.getContext('2d', { alpha: false });
+      const imgData = offCtx.createImageData(NX, NY);
+      const pixels32 = new Uint32Array(imgData.data.buffer);
+
+      // Tabla de búsqueda (LUT) de colores precalculada para máxima velocidad (1024 niveles)
+      const LUT_SIZE = 1024;
+      const colorLUT = new Uint32Array(LUT_SIZE);
+
+      // Estado de la simulación y parámetros configurables
+      const state = {
+        running: true,
+        sides: 12,           // Siempre par: 4, 6, 8, 10, 12...
+        radiusPct: 26,       // Porcentaje respecto a la altura NY
+        thickness: 5,        // Grosor en celdas de rejilla
+        rotationDeg: 15,     // Rotación del polígono en grados
+        showGuides: true,    // Mostrar guías sutiles de los lados impares abiertos
+        sourceType: 'plane_pulse',
+        continuous: false,
+        frequency: 5,        // 1 a 10
+        amplitude: 1.2,      // Factor de amplitud
+        baseDamping: 0,      // Amortiguación del medio interior (0 = sin pérdida de energía)
+        boundary: 'absorbing',
+        palette: 'amber_blue',
+        tool: 'wave',        // 'wave' | 'wall' | 'erase'
+        simTime: 0,
+        pulseTimer: 0,       // Temporizador para emisión de pulso único
+        pulseDuration: 18,
+        pulseDirection: 'left' // 'left' | 'top' | 'point'
+      };
+
+      // Geometría vectorial del crómlech para renderizado nítido sobre el mapa de ondas
+      let cromlechSegments = []; // Lados pares (muros)
+      let openSegments = [];     // Lados impares (huecos)
+
+      // Parámetro de Courant c * dt / dx (estable para <= 1/sqrt(2) ≈ 0.707)
+      const C2 = 0.24; // c² * (dt/dx)² -> velocidad de propagación limpia y sin dispersión numérica excesiva
+      const SUBSTEPS = 2; // Pasos de física por fotograma para avance fluido
+
+      // Control de FPS
+      let frameCount = 0;
+      let lastFpsTime = performance.now();
+
+      // Interacción del ratón / pantalla táctil
+      let isPointerDown = false;
+      let lastPointerGrid = null;
+
+      /**
+       * Construye la tabla de colores (LUT) según la paleta seleccionada.
+       * Almacena valores ABGR de 32 bits (Little Endian) para escritura directa en Uint32Array.
+       */
+      function buildColorLUT(paletteName) {
+        for (let i = 0; i < LUT_SIZE; i++) {
+          // Normalizar índice i en [-1, 1]
+          const norm = (i / (LUT_SIZE - 1)) * 2 - 1;
+          // Curva no lineal suave para realzar ondas difractadas de menor amplitud
+          const sign = norm < 0 ? -1 : 1;
+          const mag = Math.pow(Math.abs(norm), 0.78);
+          const v = sign * mag;
+
+          let r = 0, g = 0, b = 0;
+
+          if (paletteName === 'amber_blue') {
+            if (v >= 0) {
+              // Cresta positiva: Negro azulado -> Ámbar dorado -> Blanco cálido
+              r = Math.min(255, Math.round(12 + v * 243 + Math.pow(v, 3) * 60));
+              g = Math.min(255, Math.round(18 + Math.pow(v, 1.15) * 185 + Math.pow(v, 3) * 55));
+              b = Math.min(255, Math.round(32 + Math.pow(v, 2.2) * 160));
+            } else {
+              // Valle negativo: Negro azulado -> Azul cian eléctrico -> Celeste brillante
+              const a = -v;
+              r = Math.min(255, Math.round(12 + Math.pow(a, 2.2) * 80));
+              g = Math.min(255, Math.round(18 + Math.pow(a, 1.1) * 195));
+              b = Math.min(255, Math.round(32 + a * 223));
+            }
+          } else if (paletteName === 'ocean') {
+            if (v >= 0) {
+              r = Math.min(255, Math.round(6 + Math.pow(v, 1.6) * 140));
+              g = Math.min(255, Math.round(24 + v * 220));
+              b = Math.min(255, Math.round(48 + v * 207));
+            } else {
+              const a = -v;
+              r = Math.min(255, Math.round(6 + Math.pow(a, 2.5) * 20));
+              g = Math.min(255, Math.round(24 * (1 - a * 0.6)));
+              b = Math.min(255, Math.round(48 + a * 95));
+            }
+          } else if (paletteName === 'scientific') {
+            if (v >= 0) {
+              // Rojo intenso
+              r = Math.min(255, Math.round(20 + v * 235));
+              g = Math.min(255, Math.round(24 + Math.pow(v, 2.2) * 190));
+              b = Math.min(255, Math.round(36 + Math.pow(v, 2.6) * 170));
+            } else {
+              // Azul cobalto
+              const a = -v;
+              r = Math.min(255, Math.round(20 + Math.pow(a, 2.4) * 150));
+              g = Math.min(255, Math.round(24 + Math.pow(a, 1.5) * 185));
+              b = Math.min(255, Math.round(36 + a * 219));
+            }
+          } else {
+            // Escala de grises interferométrica
+            const lum = Math.min(255, Math.max(0, Math.round(128 + v * 127)));
+            r = lum;
+            g = lum;
+            b = Math.min(255, lum + 8);
+          }
+
+          // Formato ABGR en memoria (Little Endian)
+          colorLUT[i] = (255 << 24) | (b << 16) | (g << 8) | r;
+        }
+      }
+
+      /**
+       * Recalcula la matriz de amortiguación espacial (dampingGrid).
+       * Si el borde es 'absorbing', aplica una capa esponja suave en los márgenes
+       * para que las ondas salgan de la pantalla sin rebotar.
+       */
+      function updateDampingGrid() {
+        const spongeWidth = 22; // Ancho de la capa absorbente en celdas
+        const maxSpongeDamp = 0.14;
+        const base = state.baseDamping;
+
+        for (let y = 0; y < NY; y++) {
+          for (let x = 0; x < NX; x++) {
+            const idx = y * NX + x;
+            let damp = base;
+
+            if (state.boundary === 'absorbing') {
+              const distLeft = x;
+              const distRight = NX - 1 - x;
+              const distTop = y;
+              const distBottom = NY - 1 - y;
+              const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+
+              if (minDist < spongeWidth) {
+                const ratio = (spongeWidth - minDist) / spongeWidth;
+                damp += maxSpongeDamp * ratio * ratio;
+              }
+            }
+            dampingGrid[idx] = Math.min(0.95, damp);
+          }
+        }
+      }
+
+      /**
+       * Calcula la distancia mínima de un punto (px, py) al segmento (x1, y1)-(x2, y2).
+       */
+      function distToSegment(px, py, x1, y1, x2, y2) {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const lenSq = dx * dx + dy * dy;
+        let t = 0;
+        if (lenSq > 0) {
+          t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+        }
+        const projX = x1 + t * dx;
+        const projY = y1 + t * dy;
+        const distX = px - projX;
+        const distY = py - projY;
+        return Math.sqrt(distX * distX + distY * distY);
+      }
+
+      /**
+       * Genera la geometría del Crómlech en el centro del dominio:
+       * Polígono regular de N lados pares donde SOLO los lados pares (0, 2, 4...)
+       * se construyen como muros reflectantes sólidos y los impares quedan abiertos.
+       */
+      function rebuildCromlech() {
+        cromlechMask.fill(0);
+        cromlechSegments = [];
+        openSegments = [];
+
+        // Desplazamos ligeramente el centro a la derecha para dar más recorrido al frente incidente izquierdo
+        const cx = NX * 0.54;
+        const cy = NY * 0.50;
+        const radius = (state.radiusPct / 100) * NY;
+        const N = state.sides;
+        const rotRad = (state.rotationDeg * Math.PI) / 180;
+        const halfThick = state.thickness * 0.5;
+
+        // Calcular vértices del polígono regular
+        const vertices = [];
+        for (let i = 0; i < N; i++) {
+          const angle = rotRad + (i * 2 * Math.PI) / N;
+          vertices.push({
+            x: cx + radius * Math.cos(angle),
+            y: cy + radius * Math.sin(angle)
+          });
+        }
+
+        // Separar lados pares (muros reflectantes) e impares (huecos abiertos)
+        for (let i = 0; i < N; i++) {
+          const p1 = vertices[i];
+          const p2 = vertices[(i + 1) % N];
+          const seg = { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, index: i };
+
+          if (i % 2 === 0) {
+            // Lado PAR -> Muro reflectante
+            cromlechSegments.push(seg);
+          } else {
+            // Lado IMPAR -> Hueco abierto
+            openSegments.push(seg);
+          }
+        }
+
+        // Rasterizar los lados pares en cromlechMask
+        const minX = Math.max(1, Math.floor(cx - radius - halfThick - 2));
+        const maxX = Math.min(NX - 2, Math.ceil(cx + radius + halfThick + 2));
+        const minY = Math.max(1, Math.floor(cy - radius - halfThick - 2));
+        const maxY = Math.min(NY - 2, Math.ceil(cy + radius + halfThick + 2));
+
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            for (let s = 0; s < cromlechSegments.length; s++) {
+              const seg = cromlechSegments[s];
+              if (distToSegment(x, y, seg.x1, seg.y1, seg.x2, seg.y2) <= halfThick) {
+                cromlechMask[y * NX + x] = 1;
+                break;
+              }
+            }
+          }
+        }
+
+        syncCombinedWallMask();
+      }
+
+      /**
+       * Combina la máscara del crómlech con los muros dibujados manualmente y anula la onda en ellos.
+       */
+      function syncCombinedWallMask() {
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+          if (cromlechMask[i] || customWallMask[i]) {
+            wallMask[i] = 1;
+            uPrev[i] = 0;
+            uCurr[i] = 0;
+            uNext[i] = 0;
+          } else {
+            wallMask[i] = 0;
+          }
+        }
+      }
+
+      /**
+       * Lanza un nuevo frente de onda desde el exterior según el tipo seleccionado.
+       */
+      function triggerWaveFront() {
+        const type = state.sourceType;
+        // Duración inversa a la frecuencia seleccionada
+        state.pulseDuration = Math.max(8, Math.round(34 - state.frequency * 2.4));
+        state.pulseTimer = state.pulseDuration;
+
+        if (type === 'top_plane') {
+          state.pulseDirection = 'top';
+        } else if (type === 'point_external') {
+          state.pulseDirection = 'point';
+        } else {
+          state.pulseDirection = 'left';
+        }
+      }
+
+      /**
+       * Aplica la inyección de energía de la fuente externa (pulso único o tren continuo).
+       */
+      function applyWaveSources() {
+        const isContinuous = state.continuous || state.sourceType === 'plane_train';
+        const freqOmega = 0.08 + state.frequency * 0.032;
+        const amp = state.amplitude * 1.35;
+
+        // 1. Modo continuo (tren de ondas plano o puntual continuo)
+        if (isContinuous) {
+          const val = Math.sin(state.simTime * freqOmega) * amp * 0.65;
+          if (state.sourceType === 'top_plane') {
+            const emitY = 24;
+            for (let x = 24; x < NX - 24; x++) {
+              const idx = emitY * NX + x;
+              if (!wallMask[idx]) {
+                uCurr[idx] = val;
+                uPrev[idx] = Math.sin((state.simTime - 1) * freqOmega) * amp * 0.65;
+              }
+            }
+          } else if (state.sourceType === 'point_external') {
+            const emitX = 34;
+            const emitY = Math.floor(NY * 0.5);
+            const idx = emitY * NX + emitX;
+            if (!wallMask[idx]) {
+              uCurr[idx] = val * 2.6;
+            }
+          } else {
+            // Frente de onda plano desde la izquierda
+            const emitX = 26;
+            for (let y = 22; y < NY - 22; y++) {
+              const idx = y * NX + emitX;
+              if (!wallMask[idx]) {
+                uCurr[idx] = val;
+                uPrev[idx] = Math.sin((state.simTime - 1) * freqOmega) * amp * 0.65;
+              }
+            }
+          }
+          return;
+        }
+
+        // 2. Modo pulso único (envoltura gaussiana / seno cuadrado suave para evitar ruido de alta frecuencia)
+        if (state.pulseTimer > 0) {
+          const progress = 1 - state.pulseTimer / state.pulseDuration;
+          // Pulso bipolar suave (derivada de gaussiana / ciclo sinusoidal) para propagación física realista
+          const envelope = Math.sin(progress * Math.PI);
+          const waveShape = Math.sin(progress * Math.PI * 2) * envelope * amp * 1.15;
+
+          if (state.pulseDirection === 'top') {
+            const emitY = 24;
+            for (let x = 22; x < NX - 22; x++) {
+              const idx = emitY * NX + x;
+              if (!wallMask[idx]) {
+                uCurr[idx] += waveShape * 0.45;
+              }
+            }
+          } else if (state.pulseDirection === 'point') {
+            const emitX = 36;
+            const emitY = Math.floor(NY * 0.5);
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const idx = (emitY + dy) * NX + (emitX + dx);
+                if (!wallMask[idx]) {
+                  uCurr[idx] += waveShape * 1.4;
+                }
+              }
+            }
+          } else {
+            // Frente plano desde la izquierda
+            const emitX = 26;
+            for (let y = 20; y < NY - 20; y++) {
+              const idx = y * NX + emitX;
+              if (!wallMask[idx]) {
+                uCurr[idx] += waveShape * 0.45;
+              }
+            }
+          }
+
+          state.pulseTimer--;
+        }
+      }
+
+      /**
+       * Paso de integración FDTD de la ecuación de onda 2D con Laplaciano de 9 puntos
+       * (alta isotropía: los frentes circulares y planos se propagan sin distorsión de rejilla).
+       */
+      function stepPhysics() {
+        applyWaveSources();
+
+        const c2 = C2;
+        const reflecting = state.boundary === 'reflecting';
+
+        for (let y = 1; y < NY - 1; y++) {
+          const rowOffset = y * NX;
+          const rowUp = (y - 1) * NX;
+          const rowDown = (y + 1) * NX;
+
+          for (let x = 1; x < NX - 1; x++) {
+            const idx = rowOffset + x;
+
+            // Condición de Dirichlet u = 0 en muros reflectantes
+            if (wallMask[idx]) {
+              uNext[idx] = 0;
+              continue;
+            }
+
+            const center = uCurr[idx];
+
+            // Vecinos cardinales y diagonales para Laplaciano isotrópico (Patra-Karttunen)
+            const n  = uCurr[rowUp + x];
+            const s  = uCurr[rowDown + x];
+            const w  = uCurr[idx - 1];
+            const e  = uCurr[idx + 1];
+
+            const nw = uCurr[rowUp + x - 1];
+            const ne = uCurr[rowUp + x + 1];
+            const sw = uCurr[rowDown + x - 1];
+            const se = uCurr[rowDown + x + 1];
+
+            // Laplaciano discreto isotrópico: 4*(cardinales) + 1*(diagonales) - 20*centro / 6
+            const laplacian = (4.0 * (n + s + w + e) + (nw + ne + sw + se) - 20.0 * center) * 0.16666667;
+
+            const damp = dampingGrid[idx];
+            const vel = (center - uPrev[idx]) * (1.0 - damp);
+
+            uNext[idx] = center + vel + c2 * laplacian;
+          }
+        }
+
+        // Condiciones en el perímetro exterior (x=0, x=NX-1, y=0, y=NY-1)
+        if (reflecting) {
+          for (let x = 0; x < NX; x++) {
+            uNext[x] = 0;
+            uNext[(NY - 1) * NX + x] = 0;
+          }
+          for (let y = 0; y < NY; y++) {
+            uNext[y * NX] = 0;
+            uNext[y * NX + (NX - 1)] = 0;
+          }
+        } else {
+          // Condición absorbente de primer orden (Mur ABC) combinada con la capa esponja
+          const coef = (Math.sqrt(c2) - 1) / (Math.sqrt(c2) + 1);
+          for (let x = 1; x < NX - 1; x++) {
+            uNext[x] = uCurr[NX + x] + coef * (uNext[NX + x] - uCurr[x]);
+            const last = (NY - 1) * NX + x;
+            const prev = (NY - 2) * NX + x;
+            uNext[last] = uCurr[prev] + coef * (uNext[prev] - uCurr[last]);
+          }
+          for (let y = 1; y < NY - 1; y++) {
+            const left = y * NX;
+            uNext[left] = uCurr[left + 1] + coef * (uNext[left + 1] - uCurr[left]);
+            const right = y * NX + (NX - 1);
+            uNext[right] = uCurr[right - 1] + coef * (uNext[right - 1] - uCurr[right]);
+          }
+        }
+
+        // Rotación cíclica de punteros de arrays
+        const temp = uPrev;
+        uPrev = uCurr;
+        uCurr = uNext;
+        uNext = temp;
+
+        state.simTime++;
+      }
+
+      /**
+       * Renderiza el campo de ondas mediante ImageData y dibuja encima de forma vectorial
+       * nítida las piedras/muros del crómlech y sus guías.
+       */
+      function render() {
+        const halfLut = (LUT_SIZE - 1) * 0.5;
+        const scale = halfLut * 1.15;
+
+        // 1. Volcar amplitud de onda y muros personalizados a pixels32
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+          if (customWallMask[i]) {
+            // Color piedra azulada/pizarra para muros dibujados por el usuario
+            pixels32[i] = 0xFF947A64; // ABGR
+          } else {
+            let val = uCurr[i] * scale + halfLut;
+            if (val < 0) val = 0;
+            else if (val >= LUT_SIZE) val = LUT_SIZE - 1;
+            pixels32[i] = colorLUT[val | 0];
+          }
+        }
+
+        offCtx.putImageData(imgData, 0, 0);
+
+        // Asegurar tamaño nítido del canvas visible
+        const rect = canvasContainer.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const targetW = Math.max(1, Math.floor(rect.width * dpr));
+        const targetH = Math.max(1, Math.floor(rect.height * dpr));
+
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW;
+          canvas.height = targetH;
+        }
+
+        // 2. Escalar suavemente el campo de ondas al canvas principal
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(offscreenCanvas, 0, 0, targetW, targetH);
+
+        // Factores de escala de rejilla -> pantalla
+        const sx = targetW / NX;
+        const sy = targetH / NY;
+
+        // 3. Dibujar guías sutiles de los lados impares abiertos (si está activado)
+        if (state.showGuides && openSegments.length > 0) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.24)';
+          ctx.lineWidth = Math.max(1, 1.2 * dpr);
+          ctx.setLineDash([4 * dpr, 5 * dpr]);
+          ctx.beginPath();
+          for (let i = 0; i < openSegments.length; i++) {
+            const s = openSegments[i];
+            ctx.moveTo(s.x1 * sx, s.y1 * sy);
+            ctx.lineTo(s.x2 * sx, s.y2 * sy);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // 4. Dibujar los lados PARES del crómlech (ortostatos/muros reflectantes) con acabado nítido
+        if (cromlechSegments.length > 0) {
+          ctx.save();
+          const wallStrokeWidth = Math.max(2.5, state.thickness * ((sx + sy) * 0.5));
+
+          // Sombra / halo de contraste para que destaque sobre cualquier amplitud de onda
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+          ctx.shadowBlur = 8 * dpr;
+          ctx.lineCap = 'round';
+
+          // Base oscura exterior del bloque
+          ctx.strokeStyle = '#78350f';
+          ctx.lineWidth = wallStrokeWidth + 2.5 * dpr;
+          ctx.beginPath();
+          for (let i = 0; i < cromlechSegments.length; i++) {
+            const s = cromlechSegments[i];
+            ctx.moveTo(s.x1 * sx, s.y1 * sy);
+            ctx.lineTo(s.x2 * sx, s.y2 * sy);
+          }
+          ctx.stroke();
+
+          // Núcleo luminoso piedra/dorado-marfil
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#fde68a';
+          ctx.lineWidth = Math.max(1.5, wallStrokeWidth - 1.5 * dpr);
+          ctx.beginPath();
+          for (let i = 0; i < cromlechSegments.length; i++) {
+            const s = cromlechSegments[i];
+            ctx.moveTo(s.x1 * sx, s.y1 * sy);
+            ctx.lineTo(s.x2 * sx, s.y2 * sy);
+          }
+          ctx.stroke();
+
+          // Remates en los extremos de cada lado par (vértices del crómlech)
+          ctx.fillStyle = '#f59e0b';
+          const vertexRadius = Math.max(2, wallStrokeWidth * 0.36);
+          for (let i = 0; i < cromlechSegments.length; i++) {
+            const s = cromlechSegments[i];
+            ctx.beginPath();
+            ctx.arc(s.x1 * sx, s.y1 * sy, vertexRadius, 0, Math.PI * 2);
+            ctx.arc(s.x2 * sx, s.y2 * sy, vertexRadius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.restore();
+        }
+
+        // 5. Indicador visual sutil del emisor de frente de onda
+        ctx.save();
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+        if (state.sourceType === 'top_plane') {
+          ctx.fillRect(22 * sx, 23 * sy, (NX - 44) * sx, 2 * sy);
+        } else if (state.sourceType === 'point_external') {
+          ctx.beginPath();
+          ctx.arc(36 * sx, (NY * 0.5) * sy, 4 * dpr, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(25 * sx, 20 * sy, 2 * sx, (NY - 40) * sy);
+        }
+        ctx.restore();
+      }
+
+      /**
+       * Convierte coordenadas de evento del navegador a coordenadas de rejilla (gx, gy).
+       */
+      function getGridCoords(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const normX = (clientX - rect.left) / rect.width;
+        const normY = (clientY - rect.top) / rect.height;
+        const gx = Math.floor(Math.max(1, Math.min(NX - 2, normX * NX)));
+        const gy = Math.floor(Math.max(1, Math.min(NY - 2, normY * NY)));
+        return { x: gx, y: gy };
+      }
+
+      /**
+       * Aplica la acción del puntero (excitar onda, dibujar muro o borrar muro) en un punto o trazo.
+       */
+      function applyPointerAction(x0, y0, x1, y1) {
+        const dist = Math.hypot(x1 - x0, y1 - y0);
+        const steps = Math.max(1, Math.ceil(dist));
+
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps;
+          const cx = Math.round(x0 + (x1 - x0) * t);
+          const cy = Math.round(y0 + (y1 - y0) * t);
+
+          if (state.tool === 'wave') {
+            const rad = 4;
+            for (let dy = -rad; dy <= rad; dy++) {
+              for (let dx = -rad; dx <= rad; dx++) {
+                const nx = cx + dx;
+                const ny = cy + dy;
+                if (nx > 1 && nx < NX - 1 && ny > 1 && ny < NY - 1) {
+                  const r2 = dx * dx + dy * dy;
+                  if (r2 <= rad * rad) {
+                    const idx = ny * NX + nx;
+                    if (!wallMask[idx]) {
+                      const impulse = Math.exp(-r2 / 5.5) * state.amplitude * 1.4;
+                      uCurr[idx] += impulse;
+                    }
+                  }
+                }
+              }
+            }
+          } else if (state.tool === 'wall' || state.tool === 'erase') {
+            const brushRad = 3;
+            const val = state.tool === 'wall' ? 1 : 0;
+            for (let dy = -brushRad; dy <= brushRad; dy++) {
+              for (let dx = -brushRad; dx <= brushRad; dx++) {
+                const nx = cx + dx;
+                const ny = cy + dy;
+                if (nx > 2 && nx < NX - 2 && ny > 2 && ny < NY - 2) {
+                  if (dx * dx + dy * dy <= brushRad * brushRad) {
+                    const idx = ny * NX + nx;
+                    customWallMask[idx] = val;
+                  }
+                }
+              }
+            }
+            syncCombinedWallMask();
+          }
+        }
+      }
+
+      // Eventos de puntero unificados (ratón y táctil)
+      canvas.addEventListener('pointerdown', (e) => {
+        isPointerDown = true;
+        canvas.setPointerCapture(e.pointerId);
+        const pt = getGridCoords(e.clientX, e.clientY);
+        lastPointerGrid = pt;
+        applyPointerAction(pt.x, pt.y, pt.x, pt.y);
+      });
+
+      canvas.addEventListener('pointermove', (e) => {
+        if (!isPointerDown) return;
+        const pt = getGridCoords(e.clientX, e.clientY);
+        if (lastPointerGrid) {
+          applyPointerAction(lastPointerGrid.x, lastPointerGrid.y, pt.x, pt.y);
+        }
+        lastPointerGrid = pt;
+      });
+
+      const endPointer = (e) => {
+        isPointerDown = false;
+        lastPointerGrid = null;
+        if (e.pointerId !== undefined && canvas.hasPointerCapture(e.pointerId)) {
+          canvas.releasePointerCapture(e.pointerId);
+        }
+      };
+      canvas.addEventListener('pointerup', endPointer);
+      canvas.addEventListener('pointercancel', endPointer);
+
+      // Enlace de controles de la interfaz
+      const btnLaunch = document.getElementById('btnLaunch');
+      const btnPlayPause = document.getElementById('btnPlayPause');
+      const btnClear = document.getElementById('btnClear');
+      const iconPause = document.getElementById('iconPause');
+      const iconPlay = document.getElementById('iconPlay');
+      const txtPlayPause = document.getElementById('txtPlayPause');
+      const statusDot = document.getElementById('statusDot');
+      const fpsCounter = document.getElementById('fpsCounter');
+
+      btnLaunch.addEventListener('click', () => {
+        triggerWaveFront();
+        if (!state.running) {
+          togglePlayPause();
+        }
+      });
+
+      function togglePlayPause() {
+        state.running = !state.running;
+        if (state.running) {
+          iconPause.classList.remove('hidden');
+          iconPlay.classList.add('hidden');
+          txtPlayPause.textContent = 'Pausar';
+          statusDot.classList.replace('bg-amber-400', 'bg-emerald-400');
+          statusDot.classList.add('animate-pulse');
+        } else {
+          iconPause.classList.add('hidden');
+          iconPlay.classList.remove('hidden');
+          txtPlayPause.textContent = 'Reanudar';
+          statusDot.classList.replace('bg-emerald-400', 'bg-amber-400');
+          statusDot.classList.remove('animate-pulse');
+        }
+      }
+
+      btnPlayPause.addEventListener('click', togglePlayPause);
+
+      btnClear.addEventListener('click', () => {
+        uPrev.fill(0);
+        uCurr.fill(0);
+        uNext.fill(0);
+        state.pulseTimer = 0;
+      });
+
+      // Herramientas de ratón
+      document.querySelectorAll('.tool-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tool-btn').forEach((b) => {
+            b.classList.remove('bg-sky-500/20', 'text-sky-300', 'border', 'border-sky-500/40');
+            b.classList.add('text-slate-400');
+          });
+          btn.classList.remove('text-slate-400');
+          btn.classList.add('bg-sky-500/20', 'text-sky-300', 'border', 'border-sky-500/40');
+          state.tool = btn.dataset.tool;
+        });
+      });
+
+      document.getElementById('btnClearCustomWalls').addEventListener('click', () => {
+        customWallMask.fill(0);
+        syncCombinedWallMask();
+      });
+
+      // Controles del Frente de Onda
+      const chkContinuous = document.getElementById('chkContinuous');
+      const waveSourceType = document.getElementById('waveSourceType');
+      const sliderFreq = document.getElementById('sliderFreq');
+      const valFreq = document.getElementById('valFreq');
+      const sliderAmp = document.getElementById('sliderAmp');
+      const valAmp = document.getElementById('valAmp');
+
+      chkContinuous.addEventListener('change', (e) => {
+        state.continuous = e.target.checked;
+      });
+
+      waveSourceType.addEventListener('change', (e) => {
+        state.sourceType = e.target.value;
+        if (state.sourceType === 'plane_train') {
+          state.continuous = true;
+          chkContinuous.checked = true;
+        }
+        triggerWaveFront();
+      });
+
+      sliderFreq.addEventListener('input', (e) => {
+        state.frequency = parseInt(e.target.value, 10);
+        const labels = ['Muy baja', 'Baja', 'Baja', 'Media-baja', 'Media', 'Media', 'Media-alta', 'Alta', 'Alta', 'Muy alta'];
+        valFreq.textContent = labels[state.frequency - 1] || 'Media';
+      });
+
+      sliderAmp.addEventListener('input', (e) => {
+        const pct = parseInt(e.target.value, 10);
+        state.amplitude = pct / 100;
+        valAmp.textContent = `${pct}%`;
+      });
+
+      // Controles del Crómlech
+      const sliderSides = document.getElementById('sliderSides');
+      const valSides = document.getElementById('valSides');
+      const badgeSides = document.getElementById('badgeSides');
+      const badgeWalls = document.getElementById('badgeWalls');
+      const sliderRadius = document.getElementById('sliderRadius');
+      const valRadius = document.getElementById('valRadius');
+      const sliderThickness = document.getElementById('sliderThickness');
+      const valThickness = document.getElementById('valThickness');
+      const sliderRotation = document.getElementById('sliderRotation');
+      const valRotation = document.getElementById('valRotation');
+      const chkShowGuides = document.getElementById('chkShowGuides');
+
+      sliderSides.addEventListener('input', (e) => {
+        let val = parseInt(e.target.value, 10);
+        if (val % 2 !== 0) val += 1; // Garantizar que siempre sea par
+        state.sides = val;
+        valSides.textContent = `${val} lados`;
+        badgeSides.textContent = val;
+        badgeWalls.textContent = val / 2;
+        rebuildCromlech();
+      });
+
+      sliderRadius.addEventListener('input', (e) => {
+        state.radiusPct = parseInt(e.target.value, 10);
+        valRadius.textContent = `${state.radiusPct}%`;
+        rebuildCromlech();
+      });
+
+      sliderThickness.addEventListener('input', (e) => {
+        state.thickness = parseInt(e.target.value, 10);
+        valThickness.textContent = `${state.thickness} px`;
+        rebuildCromlech();
+      });
+
+      sliderRotation.addEventListener('input', (e) => {
+        state.rotationDeg = parseInt(e.target.value, 10);
+        valRotation.textContent = `${state.rotationDeg}°`;
+        rebuildCromlech();
+      });
+
+      chkShowGuides.addEventListener('change', (e) => {
+        state.showGuides = e.target.checked;
+      });
+
+      // Controles de Medio y Visualización
+      const selectPalette = document.getElementById('selectPalette');
+      const sliderDamping = document.getElementById('sliderDamping');
+      const valDamping = document.getElementById('valDamping');
+      const selectBoundary = document.getElementById('selectBoundary');
+
+      selectPalette.addEventListener('change', (e) => {
+        state.palette = e.target.value;
+        buildColorLUT(state.palette);
+      });
+
+      sliderDamping.addEventListener('input', (e) => {
+        const level = parseInt(e.target.value, 10);
+        // Escala progresiva de amortiguación
+        state.baseDamping = level === 0 ? 0 : 0.0008 * Math.pow(1.45, level - 1);
+        const text = level === 0 ? 'Nula (0.000)' :
+                     level <= 2 ? `Muy baja (${state.baseDamping.toFixed(4)})` :
+                     level <= 5 ? `Moderada (${state.baseDamping.toFixed(4)})` :
+                     `Alta (${state.baseDamping.toFixed(3)})`;
+        valDamping.textContent = text;
+        updateDampingGrid();
+      });
+
+      selectBoundary.addEventListener('change', (e) => {
+        state.boundary = e.target.value;
+        updateDampingGrid();
+      });
+
+      // Bucle principal de animación
+      function mainLoop(now) {
+        if (state.running) {
+          for (let s = 0; s < SUBSTEPS; s++) {
+            stepPhysics();
+          }
+        }
+
+        render();
+
+        // Actualizar contador de FPS cada 500 ms
+        frameCount++;
+        if (now - lastFpsTime >= 500) {
+          const fps = Math.round((frameCount * 1000) / (now - lastFpsTime));
+          fpsCounter.textContent = `${fps} FPS`;
+          frameCount = 0;
+          lastFpsTime = now;
+        }
+
+        requestAnimationFrame(mainLoop);
+      }
+
+      // Inicialización al cargar la ventana
+      window.addEventListener('load', () => {
+        buildColorLUT(state.palette);
+        updateDampingGrid();
+        rebuildCromlech();
+
+        // Lanzar el frente de onda inicial automáticamente para observar la colisión y difracción desde el primer segundo
+        triggerWaveFront();
+        requestAnimationFrame(mainLoop);
+      });
+    })();
+  </script>
+</body>
+</html>

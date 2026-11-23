@@ -1,0 +1,2226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>MYCELIA — Guerra Orgánica de Nodos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #03060c;
+      font-family: 'Inter', sans-serif;
+      color: #e2e8f0;
+    }
+    .font-mono-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .glass-panel {
+      background: rgba(8, 13, 24, 0.78);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+    }
+  </style>
+</head>
+<body class="relative w-full h-full overflow-hidden">
+
+  <!-- Lienzo principal de simulación -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD Superior -->
+  <header class="fixed top-0 left-0 right-0 z-20 p-3 sm:p-4 pointer-events-none flex flex-wrap items-center justify-between gap-2">
+    <!-- Marcadores de Población Total y Dominio -->
+    <div class="glass-panel rounded-2xl px-3.5 py-2 flex items-center gap-3.5 sm:gap-4 pointer-events-auto">
+      <!-- Bando Jugador -->
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-[#00f5d4] shadow-[0_0_12px_#00f5d4]"></span>
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Tu Red</div>
+          <div class="flex items-baseline gap-1.5">
+            <span id="hudPlayerUnits" class="font-mono-num text-sm sm:text-base font-extrabold text-[#00f5d4]">0</span>
+            <span id="hudPlayerHarvest" class="font-mono-num text-[11px] font-bold text-amber-300 hidden">+0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="h-7 w-px bg-slate-700/60"></div>
+
+      <!-- Barra de Equilibrio Territorial -->
+      <div class="flex flex-col gap-1 min-w-[95px] sm:min-w-[145px]">
+        <div class="flex justify-between text-[10px] font-mono-num font-semibold">
+          <span id="hudPlayerNodes" class="text-[#00f5d4]">0 nodos</span>
+          <span id="hudAiNodes" class="text-[#ff2a6d]">0 nodos</span>
+        </div>
+        <div class="w-full h-2 rounded-full bg-slate-800/95 overflow-hidden flex">
+          <div id="barPlayer" class="h-full bg-gradient-to-r from-teal-400 to-[#00f5d4] transition-all duration-300" style="width: 50%"></div>
+          <div id="barNeutral" class="h-full bg-slate-600/40 transition-all duration-300" style="width: 0%"></div>
+          <div id="barAi" class="h-full bg-gradient-to-l from-rose-600 to-[#ff2a6d] transition-all duration-300" style="width: 50%"></div>
+        </div>
+      </div>
+
+      <div class="h-7 w-px bg-slate-700/60 hidden sm:block"></div>
+
+      <!-- Bando Enemigo -->
+      <div class="hidden sm:flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-[#ff2a6d] shadow-[0_0_12px_#ff2a6d]"></span>
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Enemigo</div>
+          <div class="flex items-baseline gap-1.5">
+            <span id="hudAiUnits" class="font-mono-num text-sm sm:text-base font-extrabold text-[#ff2a6d]">0</span>
+            <span id="hudAiHarvest" class="font-mono-num text-[11px] font-bold text-amber-300 hidden">+0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selector de Niveles y Controles -->
+    <div class="glass-panel rounded-2xl p-1.5 flex items-center gap-1.5 pointer-events-auto">
+      <select id="levelSelect" title="Seleccionar nivel" class="bg-slate-900/95 text-slate-100 text-xs sm:text-sm font-semibold rounded-xl px-2.5 py-2 border border-slate-700/80 focus:outline-none focus:border-[#00f5d4] cursor-pointer">
+        <option value="1">Nivel 1 · Primer Contacto</option>
+        <option value="2">Nivel 2 · Encrucijada Ámbar</option>
+        <option value="3">Nivel 3 · Red Neuronal</option>
+      </select>
+
+      <button id="btnPause" class="p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 active:scale-95 text-slate-200 border border-slate-700/60 transition cursor-pointer" title="Pausar / Reanudar">
+        <svg id="iconPause" class="w-4 h-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <svg id="iconPlay" class="w-4 h-4 text-[#00f5d4] hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </button>
+
+      <button id="btnRestart" class="px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 active:scale-95 text-xs sm:text-sm font-semibold text-slate-100 border border-slate-700/60 transition flex items-center gap-1.5 cursor-pointer" title="Reiniciar nivel">
+        <svg class="w-4 h-4 text-[#00f5d4]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span class="hidden md:inline">Reiniciar</span>
+      </button>
+
+      <button id="btnAudio" class="p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 active:scale-95 text-slate-200 border border-slate-700/60 transition cursor-pointer" title="Sonido">
+        <svg id="iconSoundOn" class="w-4 h-4 text-[#00f5d4]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+        </svg>
+        <svg id="iconSoundOff" class="w-4 h-4 text-slate-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Leyenda Minimalista Inferior -->
+  <footer class="fixed bottom-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-[95%] max-w-3xl">
+    <div class="glass-panel rounded-2xl px-4 py-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] sm:text-xs text-slate-300">
+      <span class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-[#00f5d4]"></span>
+        <strong>Arrastrar nodo:</strong> Conectar nodo o interceptar camino rival
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+        <strong>Podar filamento propio:</strong> Deslizar encima / Clic derecho
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rotate-45 bg-amber-400"></span>
+        <strong>Nodos Ámbar:</strong> Envían pulsos +1 al Núcleo
+      </span>
+    </div>
+  </footer>
+
+  <!-- Pantalla de Inicio -->
+  <div id="startOverlay" class="fixed inset-0 z-30 flex items-center justify-center p-4 bg-[#03060c]/85 backdrop-blur-md transition-opacity duration-300">
+    <div class="glass-panel rounded-3xl max-w-lg w-full p-6 sm:p-8 text-center border border-[#00f5d4]/25 shadow-[0_0_40px_rgba(0,245,212,0.15)]">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00f5d4]/10 border border-[#00f5d4]/30 text-[#00f5d4] text-xs font-bold tracking-wider uppercase mb-4">
+        <span class="w-2 h-2 rounded-full bg-[#00f5d4] animate-ping"></span>
+        Red Orgánica Viva
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-white mb-2">
+        MYCE<span class="text-transparent bg-clip-text bg-gradient-to-r from-[#00f5d4] to-emerald-400">LIA</span>
+      </h1>
+      <p class="text-slate-300 text-sm sm:text-base leading-relaxed mb-6">
+        Haz crecer tus nodos, conquista <span class="text-amber-300 font-semibold">cristales ámbar</span> para alimentar tu Núcleo con pulsos <span class="font-mono-num text-amber-300 font-bold">+1</span> e intercepta directamente los <span class="text-rose-400 font-semibold">caminos enemigos</span> en pleno trayecto.
+      </p>
+
+      <div class="grid grid-cols-3 gap-2.5 mb-6 text-left">
+        <div class="bg-slate-900/80 rounded-2xl p-3 border border-slate-800">
+          <div class="text-[#00f5d4] font-bold text-xs mb-1">1. Expandir</div>
+          <p class="text-[11px] text-slate-400 leading-snug">Arrastra desde tu nodo hacia cualquier nodo para enviar pulsos +1.</p>
+        </div>
+        <div class="bg-slate-900/80 rounded-2xl p-3 border border-slate-800">
+          <div class="text-amber-300 font-bold text-xs mb-1">2. Recolectar</div>
+          <p class="text-[11px] text-slate-400 leading-snug">Captura nodos ámbar para bombear unidades directas a tu Núcleo.</p>
+        </div>
+        <div class="bg-slate-900/80 rounded-2xl p-3 border border-slate-800">
+          <div class="text-fuchsia-400 font-bold text-xs mb-1">3. Interceptar</div>
+          <p class="text-[11px] text-slate-400 leading-snug">Apunta a un filamento rival para atacarlo y cortar su flujo.</p>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <select id="startLevelSelect" class="w-full sm:w-auto bg-slate-900 text-slate-100 text-sm font-semibold rounded-2xl px-4 py-3.5 border border-slate-700 focus:outline-none focus:border-[#00f5d4]">
+          <option value="1">Nivel 1 · Primer Contacto</option>
+          <option value="2">Nivel 2 · Encrucijada Ámbar</option>
+          <option value="3">Nivel 3 · Red Neuronal</option>
+        </select>
+        <button id="btnStart" class="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#00f5d4] to-emerald-400 hover:brightness-110 active:scale-95 text-slate-950 font-extrabold text-sm sm:text-base tracking-wide shadow-[0_0_25px_rgba(0,245,212,0.4)] transition cursor-pointer">
+          JUGAR AHORA
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pantalla de Pausa -->
+  <div id="pauseOverlay" class="fixed inset-0 z-30 hidden items-center justify-center p-4 bg-[#03060c]/70 backdrop-blur-sm">
+    <div class="glass-panel rounded-3xl max-w-sm w-full p-6 text-center border border-slate-700/70">
+      <h2 class="text-2xl font-extrabold text-white mb-2">Simulación en Pausa</h2>
+      <p class="text-slate-400 text-xs sm:text-sm mb-5">La red orgánica espera tus órdenes.</p>
+      <button id="btnResume" class="w-full py-3 rounded-2xl bg-gradient-to-r from-[#00f5d4] to-emerald-400 text-slate-950 font-bold text-sm hover:brightness-110 active:scale-95 transition cursor-pointer">
+        Continuar Partida
+      </button>
+    </div>
+  </div>
+
+  <!-- Pantalla de Victoria / Derrota -->
+  <div id="endOverlay" class="fixed inset-0 z-30 hidden items-center justify-center p-4 bg-[#03060c]/80 backdrop-blur-md">
+    <div class="glass-panel rounded-3xl max-w-md w-full p-7 text-center border border-slate-700/70">
+      <div id="endBadge" class="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3"></div>
+      <h2 id="endTitle" class="text-3xl font-extrabold text-white mb-2"></h2>
+      <p id="endSubtitle" class="text-slate-300 text-sm mb-6"></p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <button id="btnNextLevel" class="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#00f5d4] to-emerald-400 text-slate-950 font-bold text-sm hover:brightness-110 active:scale-95 transition cursor-pointer">
+          Siguiente Nivel
+        </button>
+        <button id="btnRetryLevel" class="px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm border border-slate-700 transition cursor-pointer">
+          Repetir Nivel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * MYCELIA — Guerra Orgánica de Nodos
+     * Simulación pura basada únicamente en el valor numérico de cada nodo,
+     * pulsos físicos (+1) que viajan por filamentos orgánicos algorítmicos,
+     * nodos de recolección que alimentan al Núcleo y ataque directo a caminos enemigos.
+     */
+    (() => {
+      // =========================================================================
+      // 1. CONSTANTES Y PALETA VISUAL
+      // =========================================================================
+      const OWNERS = {
+        NEUTRAL: 0,
+        PLAYER: 1,
+        AI: 2
+      };
+
+      const NODE_TYPES = {
+        STANDARD: 'standard',
+        CORE: 'core',
+        HARVEST: 'harvest'
+      };
+
+      const PALETTE = {
+        player: {
+          primary: '#00f5d4',
+          mid: '#0d9488',
+          dark: '#042f2e',
+          glow: 'rgba(0, 245, 212, 0.34)',
+          filament: 'rgba(0, 245, 212, 0.78)'
+        },
+        ai: {
+          primary: '#ff2a6d',
+          mid: '#be123c',
+          dark: '#3b0718',
+          glow: 'rgba(255, 42, 109, 0.34)',
+          filament: 'rgba(255, 42, 109, 0.78)'
+        },
+        neutral: {
+          primary: '#94a3b8',
+          mid: '#475569',
+          dark: '#0f172a',
+          glow: 'rgba(148, 163, 184, 0.18)',
+          filament: 'rgba(148, 163, 184, 0.5)'
+        },
+        harvest: {
+          primary: '#fbbf24',
+          mid: '#d97706',
+          dark: '#451a03',
+          glow: 'rgba(251, 191, 36, 0.36)',
+          filament: 'rgba(251, 191, 36, 0.85)'
+        }
+      };
+
+      // =========================================================================
+      // 2. AUDIO PROCEDURAL (WEB AUDIO API)
+      // =========================================================================
+      class SoundFX {
+        constructor() {
+          this.ctx = null;
+          this.enabled = true;
+          this.lastSpark = 0;
+          this.lastPulse = 0;
+        }
+
+        unlock() {
+          if (!this.ctx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (Ctx) this.ctx = new Ctx();
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+        }
+
+        toggle() {
+          this.enabled = !this.enabled;
+          return this.enabled;
+        }
+
+        playConnect(isPlayer = true, isIntercept = false) {
+          if (!this.enabled || !this.ctx) return;
+          try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = isIntercept ? 'triangle' : 'sine';
+            const f0 = isPlayer ? (isIntercept ? 360 : 290) : 210;
+            osc.frequency.setValueAtTime(f0, now);
+            osc.frequency.exponentialRampToValueAtTime(f0 * 1.55, now + 0.15);
+            gain.gain.setValueAtTime(0.075, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.17);
+          } catch (e) {}
+        }
+
+        playPrune() {
+          if (!this.enabled || !this.ctx) return;
+          try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.exponentialRampToValueAtTime(140, now + 0.13);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.15);
+          } catch (e) {}
+        }
+
+        playCapture(owner) {
+          if (!this.enabled || !this.ctx) return;
+          try {
+            const now = this.ctx.currentTime;
+            const notes = owner === OWNERS.PLAYER ? [340, 460, 680] : [250, 200, 155];
+            notes.forEach((freq, i) => {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, now + i * 0.05);
+              gain.gain.setValueAtTime(0.065, now + i * 0.05);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.25);
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start(now + i * 0.05);
+              osc.stop(now + i * 0.05 + 0.27);
+            });
+          } catch (e) {}
+        }
+
+        playClash() {
+          if (!this.enabled || !this.ctx) return;
+          const now = this.ctx.currentTime;
+          if (now - this.lastSpark < 0.24) return;
+          this.lastSpark = now;
+          try {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150 + Math.random() * 80, now);
+            osc.frequency.exponentialRampToValueAtTime(65, now + 0.07);
+            gain.gain.setValueAtTime(0.02, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.08);
+          } catch (e) {}
+        }
+
+        playHarvestTick() {
+          if (!this.enabled || !this.ctx) return;
+          const now = this.ctx.currentTime;
+          if (now - this.lastPulse < 0.35) return;
+          this.lastPulse = now;
+          try {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(580, now);
+            osc.frequency.exponentialRampToValueAtTime(760, now + 0.06);
+            gain.gain.setValueAtTime(0.022, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.07);
+          } catch (e) {}
+        }
+      }
+
+      const sfx = new SoundFX();
+
+      // =========================================================================
+      // 3. UTILIDADES GEOMÉTRICAS
+      // =========================================================================
+      const Geo = {
+        dist(x1, y1, x2, y2) {
+          return Math.hypot(x2 - x1, y2 - y1);
+        },
+        clamp(v, min, max) {
+          return Math.max(min, Math.min(max, v));
+        },
+        lerp(a, b, t) {
+          return a + (b - a) * t;
+        },
+        // Intersección entre dos segmentos AB y CD
+        segmentIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+          const rx = bx - ax;
+          const ry = by - ay;
+          const sx = dx - cx;
+          const sy = dy - cy;
+          const denom = rx * sy - ry * sx;
+          if (Math.abs(denom) < 1e-6) return null;
+
+          const t = ((cx - ax) * sy - (cy - ay) * sx) / denom;
+          const u = ((cx - ax) * ry - (cy - ay) * rx) / denom;
+
+          if (t >= 0.01 && t <= 0.99 && u >= 0.01 && u <= 0.99) {
+            return {
+              x: ax + t * rx,
+              y: ay + t * ry,
+              t,
+              u
+            };
+          }
+          return null;
+        },
+        // Proyección más cercana de un punto P sobre un segmento AB
+        closestPointOnSegment(px, py, ax, ay, bx, by) {
+          const abx = bx - ax;
+          const aby = by - ay;
+          const lenSq = abx * abx + aby * aby;
+          if (lenSq === 0) {
+            return { x: ax, y: ay, t: 0, dist: Math.hypot(px - ax, py - ay) };
+          }
+          let t = ((px - ax) * abx + (py - ay) * aby) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+          const cx = ax + t * abx;
+          const cy = ay + t * aby;
+          return {
+            x: cx,
+            y: cy,
+            t,
+            dist: Math.hypot(px - cx, py - cy)
+          };
+        }
+      };
+
+      // =========================================================================
+      // 4. ENTIDADES DE LA SIMULACIÓN
+      // =========================================================================
+
+      /**
+       * Nodo de la red: únicamente posee un valor numérico entero (unidades/población).
+       */
+      class NodeEntity {
+        constructor({ id, x, y, owner, type = NODE_TYPES.STANDARD, units = 20, maxUnits = 100 }) {
+          this.id = id;
+          this.x = x;
+          this.y = y;
+          this.owner = owner;
+          this.type = type;
+          this.units = units;
+          this.maxUnits = maxUnits;
+
+          this.baseRadius = type === NODE_TYPES.CORE ? 33 : (type === NODE_TYPES.HARVEST ? 22 : 25);
+          this.pulsePhase = Math.random() * Math.PI * 2;
+          this.flash = 0;
+          this.growAccumulator = 0;
+        }
+
+        get radius() {
+          const ratio = Geo.clamp(this.units / this.maxUnits, 0, 1.15);
+          return this.baseRadius + ratio * 7;
+        }
+
+        get maxFilaments() {
+          if (this.type === NODE_TYPES.HARVEST) return 1;
+          if (this.type === NODE_TYPES.CORE) return 4;
+          if (this.units >= 65) return 3;
+          if (this.units >= 30) return 2;
+          return 1;
+        }
+
+        // Velocidad de crecimiento natural (unidades por segundo)
+        get naturalGrowthPerSec() {
+          if (this.owner === OWNERS.NEUTRAL) {
+            return this.units < 15 ? 0.35 : 0;
+          }
+          if (this.type === NODE_TYPES.HARVEST) {
+            // Genera pulsos constantes para enviarlos al Núcleo
+            return 1.35;
+          }
+          return this.type === NODE_TYPES.CORE ? 1.45 : 0.9;
+        }
+
+        update(dt) {
+          this.pulsePhase += dt * (2.2 + (this.units / this.maxUnits) * 1.4);
+          if (this.flash > 0) {
+            this.flash = Math.max(0, this.flash - dt * 2.4);
+          }
+
+          if (this.units < this.maxUnits) {
+            this.growAccumulator += this.naturalGrowthPerSec * dt;
+            if (this.growAccumulator >= 1) {
+              const add = Math.floor(this.growAccumulator);
+              this.units = Math.min(this.maxUnits, this.units + add);
+              this.growAccumulator -= add;
+            }
+          } else {
+            this.growAccumulator = 0;
+          }
+        }
+      }
+
+      /**
+       * Pulso físico (+1) que viaja a lo largo de un filamento desde el origen hacia el destino.
+       */
+      class Pulse {
+        constructor(progress = 0, isHarvestPulse = false) {
+          this.progress = progress; // 0 (origen) -> 1 (destino o punto de choque)
+          this.isHarvestPulse = isHarvestPulse;
+        }
+      }
+
+      /**
+       * Filamento orgánico generado algorítmicamente.
+       * Puede apuntar a:
+       *  - Un nodo destino (`targetNode`)
+       *  - Un punto dinámico sobre un filamento enemigo (`targetFilament`, `targetSegmentIndex`, `targetSegmentT`)
+       */
+      class Filament {
+        constructor({
+          id,
+          source,
+          targetNode = null,
+          targetFilament = null,
+          targetSegmentIndex = 0,
+          targetSegmentT = 0.5,
+          owner,
+          isHarvestLink = false
+        }) {
+          this.id = id;
+          this.source = source;
+          this.targetNode = targetNode;
+          this.targetFilament = targetFilament;
+          this.targetSegmentIndex = targetSegmentIndex;
+          this.targetSegmentT = targetSegmentT;
+
+          this.owner = owner;
+          this.isHarvestLink = isHarvestLink;
+
+          // Puntos base de la trayectoria algorítmica
+          this.points = [{ x: source.x, y: source.y }];
+          // Puntos visibles renderizados (incluye oscilación orgánica viva)
+          this.renderPoints = [{ x: source.x, y: source.y }];
+
+          this.stepSize = 12;
+          this.maxSteps = 95;
+          this.connected = false;
+          this.retracting = false;
+
+          // Parámetros algorítmicos únicos por filamento
+          this.seed = Math.random() * 1000;
+          this.waveFreq = 0.085 + Math.random() * 0.07;
+          this.waveAmp = (Math.random() < 0.5 ? 1 : -1) * (0.28 + Math.random() * 0.34);
+          this.swayPhase = Math.random() * Math.PI * 2;
+
+          // Control de crecimiento y flujo de pulsos (+1)
+          this.growthTimer = 0;
+          this.sendTimer = 0;
+          this.pulses = [];
+          this.investedUnits = 0;
+
+          // Estado de cruce / bloqueo
+          this.blockedAtIndex = null;
+          this.clashPoint = null;
+        }
+
+        get isInterceptAttack() {
+          return this.targetFilament !== null;
+        }
+
+        get tip() {
+          return this.points[this.points.length - 1];
+        }
+
+        get activePointCount() {
+          if (this.blockedAtIndex !== null) {
+            return Math.min(this.points.length, this.blockedAtIndex + 1);
+          }
+          return this.points.length;
+        }
+
+        // Calcula en tiempo real las coordenadas actuales del objetivo (nodo o punto móvil en filamento rival)
+        getDestinationCoords() {
+          if (this.targetNode) {
+            return { x: this.targetNode.x, y: this.targetNode.y, radius: this.targetNode.radius };
+          }
+          if (this.targetFilament && !this.targetFilament.retracting && this.targetFilament.renderPoints.length >= 2) {
+            const pts = this.targetFilament.renderPoints;
+            const idx = Geo.clamp(this.targetSegmentIndex, 0, pts.length - 2);
+            const p1 = pts[idx];
+            const p2 = pts[idx + 1];
+            return {
+              x: Geo.lerp(p1.x, p2.x, this.targetSegmentT),
+              y: Geo.lerp(p1.y, p2.y, this.targetSegmentT),
+              radius: 4
+            };
+          }
+          return null;
+        }
+
+        /**
+         * Crece un segmento orgánico hacia el destino evitando rodear otros nodos.
+         */
+        growStep(allNodes) {
+          const dest = this.getDestinationCoords();
+          if (!dest) {
+            this.retracting = true;
+            return false;
+          }
+
+          const current = this.tip;
+          const dx = dest.x - current.x;
+          const dy = dest.y - current.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist <= dest.radius + 7) {
+            this.points.push({ x: dest.x, y: dest.y });
+            this.connected = true;
+            return true;
+          }
+
+          let dirX = dx / dist;
+          let dirY = dy / dist;
+          const perpX = -dirY;
+          const perpY = dirX;
+
+          const approach = Geo.clamp(dist / 130, 0.08, 1);
+          const stepIdx = this.points.length;
+          const organicCurve = Math.sin(stepIdx * this.waveFreq + this.seed) * this.waveAmp * approach;
+
+          dirX += perpX * organicCurve;
+          dirY += perpY * organicCurve;
+
+          // Evasión suave alrededor de nodos intermedios
+          for (const n of allNodes) {
+            if (n.id === this.source.id) continue;
+            if (this.targetNode && n.id === this.targetNode.id) continue;
+            const ndx = current.x - n.x;
+            const ndy = current.y - n.y;
+            const nDist = Math.hypot(ndx, ndy);
+            const avoidR = n.radius + 34;
+            if (nDist < avoidR && nDist > 1) {
+              const push = ((avoidR - nDist) / avoidR) * 1.15;
+              dirX += (ndx / nDist) * push;
+              dirY += (ndy / nDist) * push;
+            }
+          }
+
+          const len = Math.hypot(dirX, dirY) || 1;
+          dirX /= len;
+          dirY /= len;
+
+          this.points.push({
+            x: current.x + dirX * this.stepSize,
+            y: current.y + dirY * this.stepSize
+          });
+
+          if (this.points.length >= this.maxSteps) {
+            this.points.push({ x: dest.x, y: dest.y });
+            this.connected = true;
+          }
+          return false;
+        }
+
+        // Actualiza los puntos visibles con oscilación orgánica y seguimiento si ataca un filamento móvil
+        updateRenderPoints() {
+          const count = this.activePointCount;
+          if (count === 0) {
+            this.renderPoints = [];
+            return;
+          }
+
+          // Si está conectado a un filamento objetivo que se mueve suavemente, actualizar la punta final
+          if (this.connected && this.isInterceptAttack && this.blockedAtIndex === null) {
+            const dest = this.getDestinationCoords();
+            if (dest && this.points.length > 1) {
+              this.points[this.points.length - 1] = { x: dest.x, y: dest.y };
+            }
+          }
+
+          const out = [];
+          for (let i = 0; i < count; i++) {
+            const pt = this.points[i];
+            const ratio = i / Math.max(1, count - 1);
+            const pin = Math.sin(ratio * Math.PI);
+            const wobble = Math.sin(this.swayPhase + i * 0.36) * 2.1 * pin;
+
+            const next = this.points[Math.min(count - 1, i + 1)];
+            const prev = this.points[Math.max(0, i - 1)];
+            const dx = next.x - prev.x;
+            const dy = next.y - prev.y;
+            const len = Math.hypot(dx, dy) || 1;
+            const nx = -dy / len;
+            const ny = dx / len;
+
+            out.push({
+              x: pt.x + nx * wobble,
+              y: pt.y + ny * wobble
+            });
+          }
+          this.renderPoints = out;
+        }
+
+        // Obtiene coordenadas exactas en el filamento para un progreso normalizado [0..1]
+        getPointAtProgress(t) {
+          const pts = this.renderPoints;
+          if (pts.length === 0) return { x: this.source.x, y: this.source.y };
+          if (pts.length === 1) return pts[0];
+          const scaled = Geo.clamp(t, 0, 1) * (pts.length - 1);
+          const idx = Math.floor(scaled);
+          const frac = scaled - idx;
+          const p1 = pts[idx];
+          const p2 = pts[Math.min(pts.length - 1, idx + 1)];
+          return {
+            x: Geo.lerp(p1.x, p2.x, frac),
+            y: Geo.lerp(p1.y, p2.y, frac)
+          };
+        }
+      }
+
+      class Spark {
+        constructor(x, y, vx, vy, color, size, life) {
+          this.x = x;
+          this.y = y;
+          this.vx = vx;
+          this.vy = vy;
+          this.color = color;
+          this.size = size;
+          this.life = life;
+          this.maxLife = life;
+        }
+
+        update(dt) {
+          this.x += this.vx * dt;
+          this.y += this.vy * dt;
+          this.vx *= 0.94;
+          this.vy *= 0.94;
+          this.life -= dt;
+        }
+      }
+
+      // =========================================================================
+      // 5. MOTOR PRINCIPAL DEL JUEGO (MYCELIA)
+      // =========================================================================
+      class MyceliaGame {
+        constructor(canvas) {
+          this.canvas = canvas;
+          this.ctx = canvas.getContext('2d');
+          this.width = window.innerWidth;
+          this.height = window.innerHeight;
+          this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+          this.nodes = [];
+          this.filaments = [];
+          this.clashes = [];
+          this.sparks = [];
+          this.ambientSpores = [];
+
+          this.level = 1;
+          this.state = 'menu'; // 'menu' | 'playing' | 'paused' | 'victory' | 'defeat'
+          this.time = 0;
+          this.aiTimer = 0;
+          this.nextId = 1;
+
+          // Estado de interacción del jugador
+          this.pointer = {
+            active: false,
+            x: 0,
+            y: 0,
+            prevX: 0,
+            prevY: 0,
+            dragStartNode: null,
+            hoverNode: null,
+            hoverEnemyFilament: null, // { filament, segIndex, t, x, y }
+            cutting: false,
+            cutTrail: []
+          };
+
+          this.initSpores();
+          this.resize();
+          this.bindEvents();
+          this.loadLevel(1);
+        }
+
+        initSpores() {
+          this.ambientSpores = [];
+          for (let i = 0; i < 60; i++) {
+            this.ambientSpores.push({
+              x: Math.random() * this.width,
+              y: Math.random() * this.height,
+              r: 0.8 + Math.random() * 2,
+              vx: (Math.random() - 0.5) * 9,
+              vy: -4 - Math.random() * 9,
+              alpha: 0.1 + Math.random() * 0.35,
+              color: Math.random() < 0.72 ? '#00f5d4' : '#fbbf24'
+            });
+          }
+        }
+
+        resize() {
+          const oldW = this.width || window.innerWidth;
+          const oldH = this.height || window.innerHeight;
+          this.width = window.innerWidth;
+          this.height = window.innerHeight;
+
+          this.canvas.width = this.width * this.dpr;
+          this.canvas.height = this.height * this.dpr;
+          this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+          if (this.nodes.length > 0 && oldW > 0 && oldH > 0) {
+            const sx = this.width / oldW;
+            const sy = this.height / oldH;
+            for (const n of this.nodes) {
+              n.x *= sx;
+              n.y *= sy;
+            }
+            for (const f of this.filaments) {
+              for (const pt of f.points) {
+                pt.x *= sx;
+                pt.y *= sy;
+              }
+            }
+          }
+        }
+
+        // =======================================================================
+        // DISEÑO DE LOS 3 NIVELES TÁCTICOS
+        // =======================================================================
+        loadLevel(levelNum) {
+          this.level = Number(levelNum);
+          this.nodes = [];
+          this.filaments = [];
+          this.clashes = [];
+          this.sparks = [];
+          this.nextId = 1;
+
+          const padX = Math.max(70, this.width * 0.1);
+          const padTop = Math.max(95, this.height * 0.15);
+          const padBot = Math.max(85, this.height * 0.14);
+          const usableW = Math.max(260, this.width - padX * 2);
+          const usableH = Math.max(260, this.height - padTop - padBot);
+
+          const isPortrait = this.height > this.width * 1.1;
+
+          // Convierte coordenadas normalizadas [0..1] adaptándose a horizontal o vertical
+          const pos = (nx, ny) => {
+            if (isPortrait) {
+              return {
+                x: padX + ny * usableW,
+                y: padTop + (1 - nx) * usableH
+              };
+            }
+            return {
+              x: padX + nx * usableW,
+              y: padTop + ny * usableH
+            };
+          };
+
+          const addNode = (nx, ny, owner, type, units, maxUnits = 100) => {
+            const p = pos(nx, ny);
+            this.nodes.push(new NodeEntity({
+              id: this.nextId++,
+              x: p.x,
+              y: p.y,
+              owner,
+              type,
+              units,
+              maxUnits
+            }));
+          };
+
+          if (this.level === 1) {
+            // NIVEL 1 · PRIMER CONTACTO
+            addNode(0.08, 0.50, OWNERS.PLAYER, NODE_TYPES.CORE, 42, 120);
+            addNode(0.92, 0.50, OWNERS.AI, NODE_TYPES.CORE, 36, 120);
+
+            // 2 Cristales ámbar en flancos
+            addNode(0.50, 0.18, OWNERS.NEUTRAL, NODE_TYPES.HARVEST, 14, 60);
+            addNode(0.50, 0.82, OWNERS.NEUTRAL, NODE_TYPES.HARVEST, 14, 60);
+
+            // Nodos puente simétricos
+            addNode(0.30, 0.32, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 12, 90);
+            addNode(0.30, 0.68, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 12, 90);
+            addNode(0.70, 0.32, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 12, 90);
+            addNode(0.70, 0.68, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 12, 90);
+          } else if (this.level === 2) {
+            // NIVEL 2 · ENCRUCIJADA ÁMBAR
+            addNode(0.07, 0.50, OWNERS.PLAYER, NODE_TYPES.CORE, 48, 130);
+            addNode(0.93, 0.50, OWNERS.AI, NODE_TYPES.CORE, 50, 130);
+
+            // 3 Nodos de recolección disputados
+            addNode(0.50, 0.50, OWNERS.NEUTRAL, NODE_TYPES.HARVEST, 20, 70);
+            addNode(0.50, 0.14, OWNERS.NEUTRAL, NODE_TYPES.HARVEST, 16, 65);
+            addNode(0.50, 0.86, OWNERS.NEUTRAL, NODE_TYPES.HARVEST, 16, 65);
+
+            // Anillo táctico
+            addNode(0.28, 0.24, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 15, 95);
+            addNode(0.28, 0.76, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 15, 95);
+            addNode(0.72, 0.24, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 15, 95);
+            addNode(0.72, 0.76, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 15, 95);
+            addNode(0.36, 0.50, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 18, 95);
+            addNode(0.64, 0.50, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 18, 95);
+          } else {
+            // NIVEL 3 · RED NEURONAL
+            addNode(0.06, 0.25, OWNERS.PLAYER, NODE_TYPES.CORE, 50, 140);
+            addNode(0.14, 0.76, OWNERS.PLAYER, NODE_TYPES.STANDARD, 26, 100);
+
+            addNode(0.94, 0.75, OWNERS.AI, NODE_TYPES.CORE, 56, 140);
+            addNode(0.86, 0.24, OWNERS.AI, NODE_TYPES.STANDARD, 30, 100);
+
+            // 4 Cristales ámbar en cruz
+            addNode(0.50, 0.15, OWNERS.NEUTRAL, NODE_TYPES.HARVEST, 18, 70);
+            addNode(0.50, 0.85, OWNERS.NEUTRAL, NODE_TYPES.HARVEST, 18, 70);
+            addNode(0.34, 0.50, OWNERS.NEUTRAL, NODE_TYPES.HARVEST, 16, 65);
+            addNode(0.66, 0.50, OWNERS.NEUTRAL, NODE_TYPES.HARVEST, 16, 65);
+
+            // Nodos centrales
+            addNode(0.50, 0.36, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 20, 100);
+            addNode(0.50, 0.64, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 20, 100);
+            addNode(0.26, 0.35, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 14, 95);
+            addNode(0.74, 0.65, OWNERS.NEUTRAL, NODE_TYPES.STANDARD, 14, 95);
+          }
+
+          this.updateHud();
+        }
+
+        // =======================================================================
+        // GESTIÓN DE FILAMENTOS Y CAPTURAS
+        // =======================================================================
+        getCoreNode(owner) {
+          return this.nodes.find(n => n.owner === owner && n.type === NODE_TYPES.CORE) ||
+                 this.nodes.find(n => n.owner === owner);
+        }
+
+        getOutgoingFilaments(node) {
+          return this.filaments.filter(f => f.source.id === node.id && !f.retracting);
+        }
+
+        canConnectToNode(source, target) {
+          if (!source || !target || source.id === target.id) return false;
+          if (source.owner === OWNERS.NEUTRAL) return false;
+          if (source.type === NODE_TYPES.HARVEST) return false;
+          if (source.units < 6) return false;
+
+          const duplicate = this.filaments.some(f =>
+            !f.retracting &&
+            f.source.id === source.id &&
+            f.targetNode &&
+            f.targetNode.id === target.id
+          );
+          if (duplicate) return false;
+
+          return this.getOutgoingFilaments(source).length < source.maxFilaments;
+        }
+
+        canInterceptFilament(source, targetFilament) {
+          if (!source || !targetFilament || targetFilament.retracting) return false;
+          if (source.owner === OWNERS.NEUTRAL || source.type === NODE_TYPES.HARVEST) return false;
+          if (targetFilament.owner === source.owner) return false;
+          if (source.units < 6) return false;
+
+          // Evitar atacar dos veces el mismo filamento desde el mismo nodo
+          const alreadyAttacking = this.filaments.some(f =>
+            !f.retracting &&
+            f.source.id === source.id &&
+            f.targetFilament &&
+            f.targetFilament.id === targetFilament.id
+          );
+          if (alreadyAttacking) return false;
+
+          return this.getOutgoingFilaments(source).length < source.maxFilaments;
+        }
+
+        createNodeFilament(source, targetNode, isHarvestLink = false) {
+          // Si ya existe un enlace inverso del mismo dueño, invertirlo
+          const reverse = this.filaments.find(f =>
+            !f.retracting &&
+            !f.isHarvestLink &&
+            f.owner === source.owner &&
+            f.source.id === targetNode.id &&
+            f.targetNode &&
+            f.targetNode.id === source.id
+          );
+          if (reverse) {
+            this.pruneFilament(reverse);
+          }
+
+          const fil = new Filament({
+            id: this.nextId++,
+            source,
+            targetNode,
+            owner: source.owner,
+            isHarvestLink
+          });
+          this.filaments.push(fil);
+          sfx.playConnect(source.owner === OWNERS.PLAYER, false);
+          return fil;
+        }
+
+        createInterceptFilament(source, targetFilament, segIndex, segT) {
+          const fil = new Filament({
+            id: this.nextId++,
+            source,
+            targetFilament,
+            targetSegmentIndex: segIndex,
+            targetSegmentT: segT,
+            owner: source.owner,
+            isHarvestLink: false
+          });
+          this.filaments.push(fil);
+          sfx.playConnect(source.owner === OWNERS.PLAYER, true);
+          return fil;
+        }
+
+        pruneFilament(fil) {
+          if (!fil || fil.retracting || fil.isHarvestLink) return;
+          fil.retracting = true;
+          fil.connected = false;
+          fil.blockedAtIndex = null;
+          fil.clashPoint = null;
+          if (fil.owner === OWNERS.PLAYER) {
+            sfx.playPrune();
+          }
+        }
+
+        onNodeCaptured(node, newOwner, fallbackNode = null) {
+          node.owner = newOwner;
+          node.flash = 1.0;
+          node.growAccumulator = 0;
+
+          // Podar filamentos que salían de este nodo bajo el dueño anterior
+          for (const f of this.filaments) {
+            if (f.source.id === node.id) {
+              f.retracting = true;
+              f.connected = false;
+            }
+          }
+
+          const burstColor = newOwner === OWNERS.PLAYER ? PALETTE.player.primary : PALETTE.ai.primary;
+          this.spawnSparks(node.x, node.y, burstColor, 22);
+          sfx.playCapture(newOwner);
+
+          // Si es un Nodo de Recolección, enlazarlo automáticamente al Núcleo del conquistador
+          if (node.type === NODE_TYPES.HARVEST && newOwner !== OWNERS.NEUTRAL) {
+            const core = this.getCoreNode(newOwner) || fallbackNode;
+            if (core && core.id !== node.id) {
+              this.createNodeFilament(node, core, true);
+            }
+          }
+        }
+
+        spawnSparks(x, y, color, count = 12) {
+          for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+            const speed = 35 + Math.random() * 95;
+            this.sparks.push(new Spark(
+              x, y,
+              Math.cos(angle) * speed,
+              Math.sin(angle) * speed,
+              color,
+              2 + Math.random() * 2.4,
+              0.4 + Math.random() * 0.35
+            ));
+          }
+        }
+
+        // =======================================================================
+        // BUCLE DE SIMULACIÓN FÍSICA Y TÁCTICA
+        // =======================================================================
+        update(dt) {
+          this.time += dt;
+
+          // 1. Crecimiento, retracción y actualización de formas de los filamentos
+          for (let i = this.filaments.length - 1; i >= 0; i--) {
+            const f = this.filaments[i];
+            f.swayPhase += dt * 2.6;
+
+            // Si perdió el dueño del nodo origen o su filamento objetivo ya desapareció
+            if (f.source.owner !== f.owner) {
+              f.retracting = true;
+              f.connected = false;
+            }
+            if (f.isInterceptAttack && (!f.targetFilament || f.targetFilament.retracting || f.targetFilament.owner === f.owner)) {
+              f.retracting = true;
+              f.connected = false;
+            }
+
+            if (f.retracting) {
+              const removeCount = Math.max(1, Math.ceil(dt * 95));
+              for (let s = 0; s < removeCount && f.points.length > 1; s++) {
+                f.points.pop();
+                // Devolver unidades invertidas en los segmentos recuperados
+                if (f.source.owner === f.owner && f.investedUnits > 0) {
+                  f.investedUnits = Math.max(0, f.investedUnits - 1);
+                  f.source.units = Math.min(f.source.maxUnits, f.source.units + 1);
+                }
+              }
+              f.updateRenderPoints();
+              if (f.points.length <= 1) {
+                this.filaments.splice(i, 1);
+              }
+              continue;
+            }
+
+            // Crecimiento segmento a segmento (consume 1 unidad del origen por segmento)
+            if (!f.connected && f.blockedAtIndex === null) {
+              const minReserve = f.isHarvestLink ? 1 : 3;
+              if (f.source.units > minReserve) {
+                const growthRate = 18 + (f.source.units / f.source.maxUnits) * 14;
+                f.growthTimer += dt * growthRate;
+                while (f.growthTimer >= 1 && !f.connected && f.source.units > minReserve) {
+                  f.growthTimer -= 1;
+                  if (!f.isHarvestLink) {
+                    f.source.units -= 1;
+                    f.investedUnits += 1;
+                  }
+                  f.growStep(this.nodes);
+                }
+              }
+            }
+
+            f.updateRenderPoints();
+          }
+
+          // 2. Resolver intersecciones y ataques directos a caminos enemigos
+          this.resolvePathBattles(dt);
+
+          // 3. Emisión y desplazamiento de pulsos físicos (+1) por los filamentos
+          this.updatePulses(dt);
+
+          // 4. Crecimiento natural de cada nodo
+          for (const n of this.nodes) {
+            n.update(dt);
+          }
+
+          // 5. Partículas ambientales y chispas
+          this.updateEffects(dt);
+
+          // 6. Decisiones de la IA y comprobación de victoria
+          if (this.state === 'playing') {
+            this.updateAI(dt);
+            this.checkEndCondition();
+          }
+        }
+
+        /**
+         * Gestiona tanto:
+         * A) Filamentos que atacan directamente un punto de un filamento enemigo (intercepción).
+         * B) Filamentos opuestos que se cruzan en el espacio.
+         */
+        resolvePathBattles(dt) {
+          this.clashes = [];
+
+          for (const f of this.filaments) {
+            f.blockedAtIndex = null;
+            f.clashPoint = null;
+          }
+
+          // A) Ataques directos de intercepción sobre un camino enemigo
+          for (const attacker of this.filaments) {
+            if (attacker.retracting || !attacker.isInterceptAttack || !attacker.connected) continue;
+            const victim = attacker.targetFilament;
+            if (!victim || victim.retracting) continue;
+
+            const dest = attacker.getDestinationCoords();
+            if (!dest) continue;
+
+            // El filamento atacado queda bloqueado justo en el punto de impacto
+            const cutIdx = Geo.clamp(attacker.targetSegmentIndex, 0, Math.max(0, victim.points.length - 1));
+            if (victim.blockedAtIndex === null || cutIdx < victim.blockedAtIndex) {
+              victim.blockedAtIndex = cutIdx;
+              victim.clashPoint = { x: dest.x, y: dest.y };
+            }
+
+            // Fuerza de ataque vs defensa del camino
+            const atkPower = 1.2 + (attacker.source.units / attacker.source.maxUnits) * 1.4;
+            const defPower = victim.isHarvestLink
+              ? 0.9
+              : 0.8 + (victim.source.units / victim.source.maxUnits) * 1.1;
+
+            // Desgaste de unidades en el duelo del camino
+            if (Math.random() < dt * 2.2 && attacker.source.units > 3) {
+              attacker.source.units -= 1;
+            }
+            if (!victim.isHarvestLink && Math.random() < dt * 2.4 && victim.source.units > 2) {
+              victim.source.units -= 1;
+            }
+
+            // Si el atacante domina, va devorando segmentos del camino enemigo hasta cortarlo
+            if (atkPower >= defPower * 0.85) {
+              if (victim.points.length > cutIdx + 1 && Math.random() < dt * (10 + atkPower * 6)) {
+                victim.points.pop();
+                victim.connected = false;
+              } else if (victim.points.length <= cutIdx + 2 && Math.random() < dt * 3.5) {
+                // Camino completamente seccionado: se retrae
+                victim.retracting = true;
+                victim.connected = false;
+                this.spawnSparks(dest.x, dest.y, PALETTE.player.primary, 14);
+              }
+            }
+
+            this.clashes.push({
+              x: dest.x,
+              y: dest.y,
+              isDirectIntercept: true
+            });
+
+            if (Math.random() < dt * 16) {
+              const color = attacker.owner === OWNERS.PLAYER ? PALETTE.player.primary : PALETTE.ai.primary;
+              this.sparks.push(new Spark(
+                dest.x, dest.y,
+                (Math.random() - 0.5) * 95,
+                (Math.random() - 0.5) * 95,
+                Math.random() < 0.5 ? '#fde047' : color,
+                2 + Math.random() * 2,
+                0.28
+              ));
+              sfx.playClash();
+            }
+          }
+
+          // B) Cruces geométricos espontáneos entre filamentos de bandos opuestos
+          const active = this.filaments.filter(f => !f.retracting && f.renderPoints.length >= 2);
+          for (let i = 0; i < active.length; i++) {
+            const f1 = active[i];
+            for (let j = i + 1; j < active.length; j++) {
+              const f2 = active[j];
+              if (f1.owner === f2.owner) continue;
+              // Evitar duplicar si uno ya está interceptando directamente al otro
+              if (f1.targetFilament === f2 || f2.targetFilament === f1) continue;
+
+              let hit = null;
+              for (let a = 0; a < f1.renderPoints.length - 1 && !hit; a++) {
+                const p1 = f1.renderPoints[a];
+                const p2 = f1.renderPoints[a + 1];
+                for (let b = 0; b < f2.renderPoints.length - 1; b++) {
+                  const q1 = f2.renderPoints[b];
+                  const q2 = f2.renderPoints[b + 1];
+                  const inter = Geo.segmentIntersect(p1.x, p1.y, p2.x, p2.y, q1.x, q1.y, q2.x, q2.y);
+                  if (inter) {
+                    hit = { ...inter, idx1: a, idx2: b };
+                    break;
+                  }
+                }
+              }
+
+              if (hit) {
+                const power1 = (f1.isHarvestLink ? 1.4 : 1.0) * (0.6 + f1.source.units / f1.source.maxUnits);
+                const power2 = (f2.isHarvestLink ? 1.4 : 1.0) * (0.6 + f2.source.units / f2.source.maxUnits);
+
+                if (!f1.isHarvestLink && Math.random() < dt * 1.8 && f1.source.units > 2) f1.source.units -= 1;
+                if (!f2.isHarvestLink && Math.random() < dt * 1.8 && f2.source.units > 2) f2.source.units -= 1;
+
+                const diff = power1 - power2;
+                if (Math.abs(diff) < 0.22) {
+                  f1.blockedAtIndex = hit.idx1;
+                  f2.blockedAtIndex = hit.idx2;
+                  f1.clashPoint = { x: hit.x, y: hit.y };
+                  f2.clashPoint = { x: hit.x, y: hit.y };
+                } else if (diff > 0) {
+                  f2.blockedAtIndex = hit.idx2;
+                  f2.clashPoint = { x: hit.x, y: hit.y };
+                  if (f2.points.length > hit.idx2 + 1 && Math.random() < dt * 12) {
+                    f2.points.pop();
+                    f2.connected = false;
+                  }
+                } else {
+                  f1.blockedAtIndex = hit.idx1;
+                  f1.clashPoint = { x: hit.x, y: hit.y };
+                  if (f1.points.length > hit.idx1 + 1 && Math.random() < dt * 12) {
+                    f1.points.pop();
+                    f1.connected = false;
+                  }
+                }
+
+                this.clashes.push({ x: hit.x, y: hit.y, isDirectIntercept: false });
+
+                if (Math.random() < dt * 14) {
+                  const col = diff >= 0 ? PALETTE.player.primary : PALETTE.ai.primary;
+                  this.sparks.push(new Spark(
+                    hit.x, hit.y,
+                    (Math.random() - 0.5) * 85,
+                    (Math.random() - 0.5) * 85,
+                    Math.random() < 0.5 ? '#fde047' : col,
+                    2 + Math.random() * 1.8,
+                    0.26
+                  ));
+                  sfx.playClash();
+                }
+              }
+            }
+          }
+        }
+
+        /**
+         * Emite pulsos discretos (+1) desde el nodo origen y los desplaza a lo largo del filamento.
+         * Al llegar al destino, suman +1 (aliado/núcleo) o restan -1 (enemigo/neutral).
+         */
+        updatePulses(dt) {
+          for (const f of this.filaments) {
+            if (f.retracting) continue;
+
+            // Emitir nuevos pulsos si está conectado y el origen tiene reservas
+            if (f.connected && f.blockedAtIndex === null) {
+              if (f.isHarvestLink) {
+                // El nodo de recolección envía cada unidad acumulada hacia el Núcleo
+                if (f.source.units >= 2) {
+                  f.sendTimer += dt * 2.1;
+                  if (f.sendTimer >= 1) {
+                    f.sendTimer -= 1;
+                    f.source.units -= 1;
+                    f.pulses.push(new Pulse(0, true));
+                  }
+                }
+              } else if (f.targetNode) {
+                const reserve = 3;
+                if (f.source.units > reserve) {
+                  const rate = 1.8 + (f.source.units / f.source.maxUnits) * 2.2;
+                  f.sendTimer += dt * rate;
+                  if (f.sendTimer >= 1) {
+                    f.sendTimer -= 1;
+                    f.source.units -= 1;
+                    f.pulses.push(new Pulse(0, false));
+                  }
+                }
+              }
+            }
+
+            // Avanzar pulsos existentes
+            const pathLen = Math.max(40, f.renderPoints.length * f.stepSize);
+            const speed = (f.isHarvestLink ? 175 : 195) / pathLen;
+
+            for (let i = f.pulses.length - 1; i >= 0; i--) {
+              const p = f.pulses[i];
+              p.progress += speed * dt;
+
+              // Si el filamento fue cortado en un cruce, los pulsos chocan allí y se disipan
+              if (f.blockedAtIndex !== null && p.progress >= 0.96) {
+                const pt = f.getPointAtProgress(1);
+                this.sparks.push(new Spark(pt.x, pt.y, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50, '#fde047', 2, 0.22));
+                f.pulses.splice(i, 1);
+                continue;
+              }
+
+              if (p.progress >= 1) {
+                f.pulses.splice(i, 1);
+                if (f.targetNode) {
+                  this.applyPulseImpact(f, f.targetNode, p.isHarvestPulse);
+                }
+              }
+            }
+          }
+        }
+
+        applyPulseImpact(filament, target, isHarvestPulse) {
+          if (target.owner === filament.owner) {
+            // Refuerzo aliado o entrega de recolección (+1 directo al número del nodo)
+            if (target.units < target.maxUnits) {
+              target.units += 1;
+              if (isHarvestPulse && filament.owner === OWNERS.PLAYER) {
+                sfx.playHarvestTick();
+              }
+            }
+          } else {
+            // Impacto ofensivo (-1 al nodo rival o neutral)
+            target.units -= 1;
+            if (target.units <= 0) {
+              target.units = 1;
+              this.onNodeCaptured(target, filament.owner, filament.source);
+            }
+          }
+        }
+
+        updateEffects(dt) {
+          for (const s of this.ambientSpores) {
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+            if (s.y < -10) {
+              s.y = this.height + 10;
+              s.x = Math.random() * this.width;
+            }
+            if (s.x < -10) s.x = this.width + 10;
+            if (s.x > this.width + 10) s.x = -10;
+          }
+
+          for (let i = this.sparks.length - 1; i >= 0; i--) {
+            this.sparks[i].update(dt);
+            if (this.sparks[i].life <= 0) {
+              this.sparks.splice(i, 1);
+            }
+          }
+        }
+
+        // =======================================================================
+        // INTELIGENCIA ARTIFICIAL (CONQUISTA, RECOLECCIÓN E INTERCEPCIÓN)
+        // =======================================================================
+        updateAI(dt) {
+          this.aiTimer -= dt;
+          if (this.aiTimer > 0) return;
+
+          this.aiTimer = this.level === 1 ? 2.0 : (this.level === 2 ? 1.35 : 0.95);
+
+          const aiNodes = this.nodes.filter(n => n.owner === OWNERS.AI && n.type !== NODE_TYPES.HARVEST);
+          if (aiNodes.length === 0) return;
+
+          // 1. Podar filamentos propios estancados si el nodo tiene pocas unidades
+          for (const f of this.filaments) {
+            if (f.owner === OWNERS.AI && !f.isHarvestLink && !f.retracting) {
+              if (f.source.units <= 8 && f.blockedAtIndex !== null) {
+                this.pruneFilament(f);
+              }
+            }
+          }
+
+          // 2. Evaluar acciones para el nodo IA con más unidades disponibles
+          const candidates = aiNodes
+            .filter(n => n.units >= 18 && this.getOutgoingFilaments(n).length < n.maxFilaments)
+            .sort((a, b) => b.units - a.units);
+
+          for (const source of candidates) {
+            let bestAction = null;
+            let bestScore = -Infinity;
+
+            // A) Evaluar conexión hacia nodos
+            for (const target of this.nodes) {
+              if (!this.canConnectToNode(source, target)) continue;
+              const d = Geo.dist(source.x, source.y, target.x, target.y);
+              let score = -d * 0.25;
+
+              if (target.type === NODE_TYPES.HARVEST && target.owner !== OWNERS.AI) {
+                score += 185 - target.units * 1.3;
+              } else if (target.owner === OWNERS.NEUTRAL) {
+                score += 120 - target.units * 1.4;
+              } else if (target.owner === OWNERS.PLAYER) {
+                const diff = source.units - target.units;
+                if (diff > 6 || this.level === 3) {
+                  score += 95 + diff * 1.2 + (target.type === NODE_TYPES.CORE ? 35 : 0);
+                } else {
+                  score -= 70;
+                }
+              } else if (target.owner === OWNERS.AI) {
+                if (target.units < 20 && source.units > 50) {
+                  score += 65;
+                } else {
+                  score -= 130;
+                }
+              }
+
+              if (score > bestScore) {
+                bestScore = score;
+                bestAction = { type: 'node', target };
+              }
+            }
+
+            // B) Evaluar intercepción directa de filamentos del jugador (especialmente enlaces ámbar o ataques al núcleo)
+            if (this.level >= 2 && source.units >= 24) {
+              for (const pFil of this.filaments) {
+                if (pFil.owner !== OWNERS.PLAYER || pFil.retracting || pFil.renderPoints.length < 4) continue;
+                if (!this.canInterceptFilament(source, pFil)) continue;
+
+                const midIdx = Math.floor(pFil.renderPoints.length * 0.5);
+                const midPt = pFil.renderPoints[midIdx];
+                const d = Geo.dist(source.x, source.y, midPt.x, midPt.y);
+
+                let score = 95 - d * 0.28 + (source.units - pFil.source.units) * 0.9;
+                if (pFil.isHarvestLink) score += 45; // Cortar suministro de recolección
+
+                if (score > bestScore) {
+                  bestScore = score;
+                  bestAction = { type: 'filament', filament: pFil, segIndex: midIdx, t: 0.5 };
+                }
+              }
+            }
+
+            if (bestAction && bestScore > 0) {
+              if (bestAction.type === 'node') {
+                this.createNodeFilament(source, bestAction.target, false);
+              } else {
+                this.createInterceptFilament(source, bestAction.filament, bestAction.segIndex, bestAction.t);
+              }
+              break;
+            }
+          }
+        }
+
+        checkEndCondition() {
+          const pNodes = this.nodes.filter(n => n.owner === OWNERS.PLAYER);
+          const aiNodes = this.nodes.filter(n => n.owner === OWNERS.AI);
+
+          if (aiNodes.length === 0) {
+            this.state = 'victory';
+            this.openEndModal(true);
+          } else if (pNodes.length === 0) {
+            this.state = 'defeat';
+            this.openEndModal(false);
+          }
+        }
+
+        openEndModal(victory) {
+          const overlay = document.getElementById('endOverlay');
+          const badge = document.getElementById('endBadge');
+          const title = document.getElementById('endTitle');
+          const subtitle = document.getElementById('endSubtitle');
+
+          overlay.classList.remove('hidden');
+          overlay.classList.add('flex');
+
+          if (victory) {
+            badge.textContent = 'Simbiosis Completada';
+            badge.className = 'inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3 bg-[#00f5d4]/15 text-[#00f5d4] border border-[#00f5d4]/30';
+            title.textContent = 'Red Dominante';
+            subtitle.textContent = 'Has asimilado todos los nodos y rutas de recolección del ecosistema.';
+          } else {
+            badge.textContent = 'Red Extinguida';
+            badge.className = 'inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3 bg-rose-500/15 text-rose-400 border border-rose-500/30';
+            title.textContent = 'Núcleo Asimilado';
+            subtitle.textContent = 'Tus nodos fueron superados e interceptados por la red rival.';
+          }
+        }
+
+        // =======================================================================
+        // RENDERIZADO EN CANVAS HTML5 (60 FPS)
+        // =======================================================================
+        render() {
+          const ctx = this.ctx;
+          ctx.clearRect(0, 0, this.width, this.height);
+
+          // 1. Fondo abisal con profundidad radial
+          const bg = ctx.createRadialGradient(
+            this.width * 0.5, this.height * 0.5, 40,
+            this.width * 0.5, this.height * 0.5, Math.max(this.width, this.height) * 0.85
+          );
+          bg.addColorStop(0, '#091224');
+          bg.addColorStop(1, '#03060c');
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, this.width, this.height);
+
+          // 2. Retícula sutil
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.03)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let x = 0; x < this.width; x += 64) {
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, this.height);
+          }
+          for (let y = 0; y < this.height; y += 64) {
+            ctx.moveTo(0, y);
+            ctx.lineTo(this.width, y);
+          }
+          ctx.stroke();
+
+          // 3. Esporas ambientales
+          for (const s of this.ambientSpores) {
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fillStyle = s.color;
+            ctx.globalAlpha = s.alpha;
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+
+          // 4. Filamentos orgánicos y pulsos (+1)
+          for (const f of this.filaments) {
+            this.renderFilament(ctx, f);
+          }
+
+          // 5. Guía interactiva al arrastrar desde un nodo del jugador
+          if (this.pointer.active && this.pointer.dragStartNode) {
+            this.renderAimGuide(ctx);
+          }
+
+          // 6. Estela de poda si desliza sobre filamentos propios
+          if (this.pointer.cutTrail.length > 1) {
+            this.renderPruneTrail(ctx);
+          }
+
+          // 7. Nodos
+          for (const n of this.nodes) {
+            this.renderNode(ctx, n);
+          }
+
+          // 8. Puntos de batalla / cruce activo
+          for (const c of this.clashes) {
+            this.renderClash(ctx, c);
+          }
+
+          // 9. Chispas y partículas
+          for (const sp of this.sparks) {
+            ctx.beginPath();
+            ctx.arc(sp.x, sp.y, sp.size * (sp.life / sp.maxLife), 0, Math.PI * 2);
+            ctx.fillStyle = sp.color;
+            ctx.globalAlpha = Geo.clamp(sp.life / sp.maxLife, 0, 1);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+
+        renderFilament(ctx, f) {
+          const pts = f.renderPoints;
+          if (pts.length < 2) return;
+
+          const pal = f.isHarvestLink
+            ? PALETTE.harvest
+            : (f.owner === OWNERS.PLAYER ? PALETTE.player : PALETTE.ai);
+
+          const isTargetedByPlayer =
+            this.pointer.active &&
+            this.pointer.dragStartNode &&
+            this.pointer.hoverEnemyFilament &&
+            this.pointer.hoverEnemyFilament.filament.id === f.id;
+
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+
+          // Halo bioluminiscente exterior
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+          }
+          ctx.strokeStyle = isTargetedByPlayer ? 'rgba(253, 224, 71, 0.55)' : pal.glow;
+          ctx.lineWidth = isTargetedByPlayer ? 15 : (f.isHarvestLink ? 9 : 11);
+          ctx.stroke();
+
+          // Cuerpo central del filamento
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+          }
+          ctx.strokeStyle = isTargetedByPlayer ? '#fde047' : pal.primary;
+          ctx.lineWidth = f.isHarvestLink ? 2.5 : 3.3;
+          ctx.stroke();
+
+          // Pulsos físicos (+1) viajando por el filamento
+          for (const pulse of f.pulses) {
+            const p = f.getPointAtProgress(pulse.progress);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, pulse.isHarvestPulse ? 4.2 : 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 7.5, 0, Math.PI * 2);
+            ctx.fillStyle = pulse.isHarvestPulse ? 'rgba(251, 191, 36, 0.45)' : pal.glow;
+            ctx.fill();
+          }
+
+          // Punta viva durante el crecimiento
+          if (!f.connected && f.blockedAtIndex === null && !f.retracting) {
+            const tip = pts[pts.length - 1];
+            ctx.beginPath();
+            ctx.arc(tip.x, tip.y, 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+          }
+
+          ctx.restore();
+        }
+
+        renderClash(ctx, clash) {
+          const pulse = 1 + Math.sin(this.time * 18) * 0.24;
+          const r = (clash.isDirectIntercept ? 12 : 10) * pulse;
+
+          ctx.save();
+          const grad = ctx.createRadialGradient(clash.x, clash.y, 1, clash.x, clash.y, r * 2.2);
+          grad.addColorStop(0, '#ffffff');
+          grad.addColorStop(0.42, '#f0abfc');
+          grad.addColorStop(1, 'rgba(240, 171, 252, 0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(clash.x, clash.y, r * 2.2, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(clash.x, clash.y, r * 0.78, 0, Math.PI * 2);
+          ctx.strokeStyle = '#fde047';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        renderAimGuide(ctx) {
+          const src = this.pointer.dragStartNode;
+          const targetNode = this.pointer.hoverNode;
+          const targetFil = this.pointer.hoverEnemyFilament;
+
+          let endX = this.pointer.x;
+          let endY = this.pointer.y;
+          let isValid = false;
+
+          if (targetNode && targetNode.id !== src.id) {
+            endX = targetNode.x;
+            endY = targetNode.y;
+            isValid = this.canConnectToNode(src, targetNode);
+          } else if (targetFil) {
+            endX = targetFil.x;
+            endY = targetFil.y;
+            isValid = this.canInterceptFilament(src, targetFil.filament);
+          }
+
+          ctx.save();
+          ctx.setLineDash([7, 7]);
+          ctx.lineDashOffset = -this.time * 38;
+          ctx.beginPath();
+          ctx.moveTo(src.x, src.y);
+          ctx.lineTo(endX, endY);
+          ctx.strokeStyle = isValid ? '#00f5d4' : 'rgba(148, 163, 184, 0.55)';
+          ctx.lineWidth = isValid ? 3 : 2;
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Anillo de fijación sobre nodo objetivo
+          if (targetNode && targetNode.id !== src.id) {
+            ctx.beginPath();
+            ctx.arc(targetNode.x, targetNode.y, targetNode.radius + 9, 0, Math.PI * 2);
+            ctx.strokeStyle = isValid ? '#00f5d4' : '#f43f5e';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+          }
+
+          // Mirilla de intercepción directa sobre filamento enemigo
+          if (!targetNode && targetFil) {
+            const r = 13 + Math.sin(this.time * 14) * 2;
+            ctx.beginPath();
+            ctx.arc(targetFil.x, targetFil.y, r, 0, Math.PI * 2);
+            ctx.strokeStyle = isValid ? '#fde047' : '#f43f5e';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // Aspas de mirilla
+            ctx.beginPath();
+            ctx.moveTo(targetFil.x - r - 4, targetFil.y);
+            ctx.lineTo(targetFil.x - r + 4, targetFil.y);
+            ctx.moveTo(targetFil.x + r - 4, targetFil.y);
+            ctx.lineTo(targetFil.x + r + 4, targetFil.y);
+            ctx.moveTo(targetFil.x, targetFil.y - r - 4);
+            ctx.lineTo(targetFil.x, targetFil.y - r + 4);
+            ctx.moveTo(targetFil.x, targetFil.y + r - 4);
+            ctx.lineTo(targetFil.x, targetFil.y + r + 4);
+            ctx.stroke();
+          }
+
+          ctx.restore();
+        }
+
+        renderPruneTrail(ctx) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(this.pointer.cutTrail[0].x, this.pointer.cutTrail[0].y);
+          for (let i = 1; i < this.pointer.cutTrail.length; i++) {
+            ctx.lineTo(this.pointer.cutTrail[i].x, this.pointer.cutTrail[i].y);
+          }
+          ctx.strokeStyle = 'rgba(244, 63, 94, 0.88)';
+          ctx.lineWidth = 3;
+          ctx.lineCap = 'round';
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        renderNode(ctx, node) {
+          const r = node.radius + Math.sin(node.pulsePhase) * 1.4;
+          const pal = node.owner === OWNERS.PLAYER
+            ? PALETTE.player
+            : (node.owner === OWNERS.AI ? PALETTE.ai : PALETTE.neutral);
+
+          ctx.save();
+
+          // 1. Resplandor bioluminiscente exterior
+          const haloR = r * (node.type === NODE_TYPES.CORE ? 2.2 : 1.9);
+          const halo = ctx.createRadialGradient(node.x, node.y, r * 0.25, node.x, node.y, haloR);
+          halo.addColorStop(0, node.type === NODE_TYPES.HARVEST ? PALETTE.harvest.glow : pal.glow);
+          halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = halo;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, haloR, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Onda expansiva al ser conquistado
+          if (node.flash > 0) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, r + (1 - node.flash) * 36, 0, Math.PI * 2);
+            ctx.strokeStyle = pal.primary;
+            ctx.globalAlpha = node.flash;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+
+          // 2. Indicadores de ranuras de filamento disponibles (nodos propios)
+          if (node.owner === OWNERS.PLAYER && node.type !== NODE_TYPES.HARVEST) {
+            const maxSlots = node.maxFilaments;
+            const usedSlots = this.getOutgoingFilaments(node).length;
+            const slotR = r + 6.5;
+            for (let s = 0; s < maxSlots; s++) {
+              const ang = -Math.PI / 2 + (s * Math.PI * 2) / maxSlots;
+              ctx.beginPath();
+              ctx.arc(node.x + Math.cos(ang) * slotR, node.y + Math.sin(ang) * slotR, 2.4, 0, Math.PI * 2);
+              ctx.fillStyle = s < usedSlots ? '#00f5d4' : 'rgba(148, 163, 184, 0.35)';
+              ctx.fill();
+            }
+          }
+
+          // 3. Geometría del nodo
+          if (node.type === NODE_TYPES.HARVEST) {
+            this.drawHexagon(ctx, node.x, node.y, r, this.time * 0.35);
+            const hexGrad = ctx.createRadialGradient(node.x - r * 0.25, node.y - r * 0.25, 2, node.x, node.y, r);
+            hexGrad.addColorStop(0, '#fef08a');
+            hexGrad.addColorStop(0.55, '#f59e0b');
+            hexGrad.addColorStop(1, '#78350f');
+            ctx.fillStyle = hexGrad;
+            ctx.fill();
+
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = node.owner === OWNERS.NEUTRAL ? '#fbbf24' : pal.primary;
+            ctx.stroke();
+          } else {
+            const bodyGrad = ctx.createRadialGradient(node.x - r * 0.3, node.y - r * 0.3, 2, node.x, node.y, r);
+            bodyGrad.addColorStop(0, pal.primary);
+            bodyGrad.addColorStop(0.72, pal.mid);
+            bodyGrad.addColorStop(1, pal.dark);
+
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = bodyGrad;
+            ctx.fill();
+
+            ctx.lineWidth = node.type === NODE_TYPES.CORE ? 3.6 : 2.3;
+            ctx.strokeStyle = pal.primary;
+            ctx.stroke();
+
+            // Órbita exterior distintiva del Núcleo Principal
+            if (node.type === NODE_TYPES.CORE) {
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, r + 5.5, this.time * 0.85, this.time * 0.85 + Math.PI * 1.35);
+              ctx.strokeStyle = pal.primary;
+              ctx.lineWidth = 1.7;
+              ctx.stroke();
+            }
+          }
+
+          // 4. Número entero grande y legible en el centro del nodo
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `800 ${node.type === NODE_TYPES.CORE ? 16 : 14}px "JetBrains Mono", monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+          ctx.shadowBlur = 5;
+          ctx.fillText(Math.floor(node.units), node.x, node.y + 0.5);
+
+          // Etiqueta limpia bajo el Núcleo o Nodo de Recolección
+          if (node.type === NODE_TYPES.CORE) {
+            ctx.font = '700 9px "Inter", sans-serif';
+            ctx.fillStyle = pal.primary;
+            ctx.fillText('NÚCLEO', node.x, node.y + r + 14);
+          } else if (node.type === NODE_TYPES.HARVEST) {
+            ctx.font = '700 9px "Inter", sans-serif';
+            ctx.fillStyle = '#fcd34d';
+            ctx.fillText('RECOLECTOR', node.x, node.y + r + 13);
+          }
+
+          ctx.restore();
+        }
+
+        drawHexagon(ctx, cx, cy, r, rot = 0) {
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = rot + (Math.PI / 3) * i;
+            const x = cx + Math.cos(a) * r;
+            const y = cy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+        }
+
+        // =======================================================================
+        // ACTUALIZACIÓN DEL HUD SUPERIOR
+        // =======================================================================
+        updateHud() {
+          let pUnits = 0, aiUnits = 0;
+          let pNodes = 0, aiNodes = 0, nNodes = 0;
+          let pHarvest = 0, aiHarvest = 0;
+
+          for (const n of this.nodes) {
+            if (n.owner === OWNERS.PLAYER) {
+              pUnits += n.units;
+              pNodes++;
+              if (n.type === NODE_TYPES.HARVEST) pHarvest++;
+            } else if (n.owner === OWNERS.AI) {
+              aiUnits += n.units;
+              aiNodes++;
+              if (n.type === NODE_TYPES.HARVEST) aiHarvest++;
+            } else {
+              nNodes++;
+            }
+          }
+
+          const total = Math.max(1, this.nodes.length);
+          document.getElementById('hudPlayerUnits').textContent = Math.floor(pUnits);
+          document.getElementById('hudAiUnits').textContent = Math.floor(aiUnits);
+          document.getElementById('hudPlayerNodes').textContent = `${pNodes} nodos`;
+          document.getElementById('hudAiNodes').textContent = `${aiNodes} nodos`;
+
+          const pHarvEl = document.getElementById('hudPlayerHarvest');
+          if (pHarvest > 0) {
+            pHarvEl.textContent = `+${pHarvest} recolector${pHarvest > 1 ? 'es' : ''}`;
+            pHarvEl.classList.remove('hidden');
+          } else {
+            pHarvEl.classList.add('hidden');
+          }
+
+          const aiHarvEl = document.getElementById('hudAiHarvest');
+          if (aiHarvest > 0) {
+            aiHarvEl.textContent = `+${aiHarvest} recolector${aiHarvest > 1 ? 'es' : ''}`;
+            aiHarvEl.classList.remove('hidden');
+          } else {
+            aiHarvEl.classList.add('hidden');
+          }
+
+          document.getElementById('barPlayer').style.width = `${(pNodes / total) * 100}%`;
+          document.getElementById('barNeutral').style.width = `${(nNodes / total) * 100}%`;
+          document.getElementById('barAi').style.width = `${(aiNodes / total) * 100}%`;
+        }
+
+        // =======================================================================
+        // INTERACCIÓN DE PUNTERO (RATÓN Y TÁCTIL)
+        // =======================================================================
+        findNodeAt(x, y, margin = 12) {
+          for (let i = this.nodes.length - 1; i >= 0; i--) {
+            const n = this.nodes[i];
+            if (Geo.dist(x, y, n.x, n.y) <= n.radius + margin) {
+              return n;
+            }
+          }
+          return null;
+        }
+
+        // Detecta si el cursor/dedo está apuntando cerca de un filamento enemigo para interceptarlo
+        findEnemyFilamentAt(x, y, maxDist = 18) {
+          let best = null;
+          let bestDist = maxDist;
+
+          for (const f of this.filaments) {
+            if (f.owner !== OWNERS.AI || f.retracting || f.renderPoints.length < 2) continue;
+            // Evitar apuntar justo encima de los nodos extremos (donde ya se selecciona el nodo)
+            const startIdx = 1;
+            const endIdx = f.renderPoints.length - 2;
+            for (let i = startIdx; i <= endIdx; i++) {
+              const p1 = f.renderPoints[i];
+              const p2 = f.renderPoints[i + 1];
+              if (!p2) continue;
+              const closest = Geo.closestPointOnSegment(x, y, p1.x, p1.y, p2.x, p2.y);
+              if (closest.dist < bestDist) {
+                bestDist = closest.dist;
+                best = {
+                  filament: f,
+                  segIndex: i,
+                  t: closest.t,
+                  x: closest.x,
+                  y: closest.y
+                };
+              }
+            }
+          }
+          return best;
+        }
+
+        prunePlayerFilamentsAlong(x1, y1, x2, y2) {
+          for (const f of this.filaments) {
+            if (f.owner !== OWNERS.PLAYER || f.retracting || f.isHarvestLink) continue;
+            for (let i = 0; i < f.renderPoints.length - 1; i++) {
+              const p1 = f.renderPoints[i];
+              const p2 = f.renderPoints[i + 1];
+              if (Geo.segmentIntersect(x1, y1, x2, y2, p1.x, p1.y, p2.x, p2.y)) {
+                this.pruneFilament(f);
+                this.spawnSparks((p1.x + p2.x) * 0.5, (p1.y + p2.y) * 0.5, '#f43f5e', 9);
+                break;
+              }
+            }
+          }
+        }
+
+        bindEvents() {
+          window.addEventListener('resize', () => this.resize());
+
+          const coords = (e) => {
+            if (e.touches && e.touches.length > 0) {
+              return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+            return { x: e.clientX, y: e.clientY };
+          };
+
+          const onDown = (e) => {
+            if (this.state !== 'playing') return;
+            sfx.unlock();
+
+            const { x, y } = coords(e);
+            this.pointer.active = true;
+            this.pointer.x = x;
+            this.pointer.y = y;
+            this.pointer.prevX = x;
+            this.pointer.prevY = y;
+
+            if (e.button === 2) {
+              this.pointer.cutting = true;
+              this.pointer.cutTrail = [{ x, y }];
+              return;
+            }
+
+            const hit = this.findNodeAt(x, y, 13);
+            if (hit && hit.owner === OWNERS.PLAYER && hit.type !== NODE_TYPES.HARVEST) {
+              this.pointer.dragStartNode = hit;
+              this.pointer.cutting = false;
+            } else {
+              this.pointer.dragStartNode = null;
+              this.pointer.cutting = true;
+              this.pointer.cutTrail = [{ x, y }];
+            }
+          };
+
+          const onMove = (e) => {
+            const { x, y } = coords(e);
+            this.pointer.prevX = this.pointer.x;
+            this.pointer.prevY = this.pointer.y;
+            this.pointer.x = x;
+            this.pointer.y = y;
+
+            this.pointer.hoverNode = this.findNodeAt(x, y, 13);
+            this.pointer.hoverEnemyFilament = this.pointer.hoverNode
+              ? null
+              : this.findEnemyFilamentAt(x, y, 20);
+
+            if (!this.pointer.active || this.state !== 'playing') return;
+
+            if (this.pointer.cutting) {
+              this.pointer.cutTrail.push({ x, y });
+              if (this.pointer.cutTrail.length > 10) this.pointer.cutTrail.shift();
+              this.prunePlayerFilamentsAlong(this.pointer.prevX, this.pointer.prevY, x, y);
+            }
+          };
+
+          const onUp = () => {
+            if (!this.pointer.active) return;
+
+            const src = this.pointer.dragStartNode;
+            if (src) {
+              if (this.pointer.hoverNode && this.canConnectToNode(src, this.pointer.hoverNode)) {
+                this.createNodeFilament(src, this.pointer.hoverNode, false);
+              } else if (this.pointer.hoverEnemyFilament && this.canInterceptFilament(src, this.pointer.hoverEnemyFilament.filament)) {
+                const hit = this.pointer.hoverEnemyFilament;
+                this.createInterceptFilament(src, hit.filament, hit.segIndex, hit.t);
+              }
+            }
+
+            this.pointer.active = false;
+            this.pointer.dragStartNode = null;
+            this.pointer.cutting = false;
+            this.pointer.cutTrail = [];
+          };
+
+          this.canvas.addEventListener('mousedown', onDown);
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+
+          this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            onDown(e);
+          }, { passive: false });
+
+          window.addEventListener('touchmove', (e) => {
+            if (this.pointer.active) e.preventDefault();
+            onMove(e);
+          }, { passive: false });
+
+          window.addEventListener('touchend', onUp);
+          this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        }
+      }
+
+      // =========================================================================
+      // 6. ARRANQUE E INTERFAZ DE CONTROL
+      // =========================================================================
+      window.onload = () => {
+        const canvas = document.getElementById('gameCanvas');
+        const game = new MyceliaGame(canvas);
+
+        const startOverlay = document.getElementById('startOverlay');
+        const pauseOverlay = document.getElementById('pauseOverlay');
+        const endOverlay = document.getElementById('endOverlay');
+        const startLevelSelect = document.getElementById('startLevelSelect');
+        const levelSelect = document.getElementById('levelSelect');
+
+        const setPauseUI = (paused) => {
+          document.getElementById('iconPause').classList.toggle('hidden', paused);
+          document.getElementById('iconPlay').classList.toggle('hidden', !paused);
+          pauseOverlay.classList.toggle('hidden', !paused);
+          pauseOverlay.classList.toggle('flex', paused);
+        };
+
+        startLevelSelect.addEventListener('change', (e) => {
+          levelSelect.value = e.target.value;
+        });
+
+        levelSelect.addEventListener('change', (e) => {
+          startLevelSelect.value = e.target.value;
+          endOverlay.classList.add('hidden');
+          endOverlay.classList.remove('flex');
+          setPauseUI(false);
+          game.loadLevel(e.target.value);
+          if (game.state !== 'menu') {
+            game.state = 'playing';
+          }
+        });
+
+        document.getElementById('btnStart').addEventListener('click', () => {
+          sfx.unlock();
+          const lvl = startLevelSelect.value;
+          levelSelect.value = lvl;
+          game.loadLevel(lvl);
+          game.state = 'playing';
+          startOverlay.classList.add('opacity-0', 'pointer-events-none');
+          setTimeout(() => startOverlay.classList.add('hidden'), 320);
+        });
+
+        document.getElementById('btnPause').addEventListener('click', () => {
+          if (game.state === 'playing') {
+            game.state = 'paused';
+            setPauseUI(true);
+          } else if (game.state === 'paused') {
+            game.state = 'playing';
+            setPauseUI(false);
+          }
+        });
+
+        document.getElementById('btnResume').addEventListener('click', () => {
+          if (game.state === 'paused') {
+            game.state = 'playing';
+            setPauseUI(false);
+          }
+        });
+
+        document.getElementById('btnRestart').addEventListener('click', () => {
+          sfx.unlock();
+          endOverlay.classList.add('hidden');
+          endOverlay.classList.remove('flex');
+          setPauseUI(false);
+          game.loadLevel(levelSelect.value);
+          game.state = 'playing';
+        });
+
+        document.getElementById('btnNextLevel').addEventListener('click', () => {
+          const next = (Number(levelSelect.value) % 3) + 1;
+          levelSelect.value = String(next);
+          startLevelSelect.value = String(next);
+          endOverlay.classList.add('hidden');
+          endOverlay.classList.remove('flex');
+          game.loadLevel(next);
+          game.state = 'playing';
+        });
+
+        document.getElementById('btnRetryLevel').addEventListener('click', () => {
+          endOverlay.classList.add('hidden');
+          endOverlay.classList.remove('flex');
+          game.loadLevel(levelSelect.value);
+          game.state = 'playing';
+        });
+
+        document.getElementById('btnAudio').addEventListener('click', () => {
+          sfx.unlock();
+          const on = sfx.toggle();
+          document.getElementById('iconSoundOn').classList.toggle('hidden', !on);
+          document.getElementById('iconSoundOff').classList.toggle('hidden', on);
+        });
+
+        // Bucle principal de animación a 60 FPS
+        let lastTime = performance.now();
+        let hudAccum = 0;
+
+        function loop(now) {
+          const dt = Math.min(0.05, (now - lastTime) / 1000);
+          lastTime = now;
+
+          if (game.state === 'playing' || game.state === 'menu') {
+            game.update(dt);
+          }
+          game.render();
+
+          hudAccum += dt;
+          if (hudAccum >= 0.1) {
+            hudAccum = 0;
+            game.updateHud();
+          }
+
+          requestAnimationFrame(loop);
+        }
+
+        requestAnimationFrame(loop);
+      };
+    })();
+  </script>
+</body>
+</html>

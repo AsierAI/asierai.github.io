@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LATTICE // JUST INTONATION</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos base para instalación generativa de galería y uso táctil */
+        :root {
+            --bg-canvas: #F6F5F0;
+            --ink-primary: #141413;
+            --ink-secondary: #6E6D68;
+            --hairline: rgba(20, 20, 19, 0.14);
+            --accent-vermilion: #D63826;
+            --surface-pill: rgba(246, 245, 240, 0.84);
+        }
+
+        html.dark-gallery {
+            --bg-canvas: #121211;
+            --ink-primary: #F2F0E9;
+            --ink-secondary: #9A9890;
+            --hairline: rgba(242, 240, 233, 0.14);
+            --accent-vermilion: #FF4D38;
+            --surface-pill: rgba(18, 18, 17, 0.84);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-canvas);
+            color: var(--ink-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            transition: background-color 0.45s ease, color 0.45s ease;
+            touch-action: none;
+        }
+
+        .font-mono-tech {
+            font-family: 'Space Mono', monospace;
+        }
+
+        #lattice-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: crosshair;
+        }
+
+        /* Controles minimalistas tipo cartela museográfica */
+        .gallery-pill {
+            background: var(--surface-pill);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--hairline);
+            border-radius: 9999px;
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, transform 0.15s ease;
+        }
+
+        .gallery-btn {
+            background: var(--surface-pill);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--hairline);
+            border-radius: 9999px;
+            color: var(--ink-primary);
+            transition: all 0.2s ease;
+            touch-action: manipulation;
+        }
+
+        .gallery-btn:hover {
+            border-color: var(--ink-primary);
+            transform: translateY(-1px);
+        }
+
+        .gallery-btn:active {
+            transform: scale(0.96);
+        }
+
+        .gallery-btn.is-active {
+            background-color: var(--accent-vermilion);
+            border-color: var(--accent-vermilion);
+            color: #FFFFFF;
+        }
+
+        /* Overlay inicial sutil de activación de audio */
+        #audio-gate {
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+
+        #audio-gate.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Lienzo principal de la malla y la partícula -->
+    <canvas id="lattice-canvas"></canvas>
+
+    <!-- Cabecera superior minimalista -->
+    <header class="fixed top-3 left-3 right-3 sm:top-5 sm:left-6 sm:right-6 z-20 flex items-start justify-between gap-2 pointer-events-none">
+        <div class="gallery-pill px-3.5 py-2 sm:px-4 sm:py-2.5 pointer-events-auto">
+            <div class="flex items-center gap-2">
+                <span id="status-dot" class="w-2 h-2 rounded-full bg-[#6E6D68] transition-colors duration-300"></span>
+                <h1 class="font-mono-tech text-[11px] sm:text-xs tracking-[0.16em] uppercase font-bold">
+                    LATTICE // JI
+                </h1>
+            </div>
+            <p id="active-ratios" class="font-mono-tech text-[10px] sm:text-[11px] tracking-[0.08em] mt-0.5 text-[var(--ink-secondary)]">
+                1:1 · 5:4 · 3:2
+            </p>
+        </div>
+
+        <div class="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
+            <button id="btn-audio" class="gallery-btn px-3 py-2 font-mono-tech text-[10px] sm:text-[11px] tracking-[0.12em] uppercase" title="Activar o silenciar sonido">
+                AUDIO OFF
+            </button>
+            <button id="btn-theme" class="gallery-btn px-3 py-2 font-mono-tech text-[10px] sm:text-[11px] tracking-[0.12em] uppercase" title="Alternar iluminación de sala">
+                NOCHE
+            </button>
+        </div>
+    </header>
+
+    <!-- Barra inferior de parámetros generativos -->
+    <footer class="fixed bottom-3 left-3 right-3 sm:bottom-5 sm:left-6 sm:right-6 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 pointer-events-auto">
+            <button id="btn-scale" class="gallery-btn px-3 py-2 font-mono-tech text-[10px] sm:text-[11px] tracking-[0.12em] uppercase" title="Cambiar sistema de entonación justa">
+                <span id="scale-label">5-LIMIT</span>
+            </button>
+
+            <button id="btn-fundamental" class="gallery-btn px-3 py-2 font-mono-tech text-[10px] sm:text-[11px] tracking-[0.12em] uppercase" title="Cambiar nota fundamental">
+                FUND <span id="fundamental-label">C3</span>
+            </button>
+
+            <button id="btn-speed" class="gallery-btn px-3 py-2 font-mono-tech text-[10px] sm:text-[11px] tracking-[0.12em] uppercase" title="Cambiar velocidad de la partícula">
+                VEL <span id="speed-label">1.0x</span>
+            </button>
+        </div>
+
+        <div class="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
+            <button id="btn-clear-solids" class="gallery-btn px-3 py-2 font-mono-tech text-[10px] sm:text-[11px] tracking-[0.12em] uppercase" title="Liberar todos los triángulos sólidos">
+                LIBERAR (<span id="solid-count">0</span>)
+            </button>
+
+            <button id="btn-regenerate" class="gallery-btn px-3 py-2 font-mono-tech text-[10px] sm:text-[11px] tracking-[0.12em] uppercase" title="Generar nueva triangulación">
+                NUEVA RED
+            </button>
+
+            <button id="btn-pause" class="gallery-btn px-3 py-2 font-mono-tech text-[10px] sm:text-[11px] tracking-[0.12em] uppercase" title="Pausar o reanudar">
+                PAUSA
+            </button>
+        </div>
+    </footer>
+
+    <!-- Velo sutil de entrada para desbloquear Web Audio con gesto del usuario -->
+    <div id="audio-gate" class="fixed inset-0 z-30 flex items-center justify-center p-4 bg-black/25 backdrop-blur-[2px]">
+        <div class="gallery-pill max-w-sm w-full p-6 text-center shadow-lg">
+            <p class="font-mono-tech text-[10px] tracking-[0.18em] uppercase text-[var(--ink-secondary)] mb-2">
+                OBRA GENERATIVA · ENTONACIÓN JUSTA
+            </p>
+            <h2 class="font-mono-tech text-base tracking-[0.14em] uppercase font-bold mb-3">
+                TRÍADAS EN LA MALLA
+            </h2>
+            <p class="text-xs sm:text-sm leading-relaxed text-[var(--ink-secondary)] mb-5">
+                Cada triángulo emite las 3 notas puras de sus vértices. Toca un triángulo para hacerlo sólido y provocar rebotes; arrastra para impulsar la partícula.
+            </p>
+            <button id="btn-enter" class="gallery-btn is-active w-full py-2.5 px-4 font-mono-tech text-xs tracking-[0.16em] uppercase font-bold">
+                INICIAR CON SONIDO
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ========================================================================
+        // 1. SISTEMAS ARMÓNICOS Y FUNDAMENTALES DE ENTONACIÓN JUSTA
+        // ========================================================================
+        const FUNDAMENTAL_NOTES = [
+            { label: 'C2', freq: 65.4064 },
+            { label: 'D2', freq: 73.4162 },
+            { label: 'E2', freq: 82.4069 },
+            { label: 'F2', freq: 87.3071 },
+            { label: 'G2', freq: 97.9989 },
+            { label: 'A2', freq: 110.0000 },
+            { label: 'B2', freq: 123.4708 },
+            { label: 'C3', freq: 130.8128 },
+            { label: 'D3', freq: 146.8324 },
+            { label: 'E3', freq: 164.8138 },
+            { label: 'F3', freq: 174.6141 },
+            { label: 'G3', freq: 195.9977 }
+        ];
+
+        const JI_SYSTEMS = [
+            {
+                name: '5-LIMIT',
+                ratios: [
+                    { label: '1:1', value: 1 / 1 },
+                    { label: '9:8', value: 9 / 8 },
+                    { label: '5:4', value: 5 / 4 },
+                    { label: '4:3', value: 4 / 3 },
+                    { label: '3:2', value: 3 / 2 },
+                    { label: '5:3', value: 5 / 3 },
+                    { label: '15:8', value: 15 / 8 },
+                    { label: '2:1', value: 2 / 1 }
+                ]
+            },
+            {
+                name: '7-LIMIT',
+                ratios: [
+                    { label: '1:1', value: 1 / 1 },
+                    { label: '8:7', value: 8 / 7 },
+                    { label: '7:6', value: 7 / 6 },
+                    { label: '5:4', value: 5 / 4 },
+                    { label: '4:3', value: 4 / 3 },
+                    { label: '7:5', value: 7 / 5 },
+                    { label: '3:2', value: 3 / 2 },
+                    { label: '7:4', value: 7 / 4 },
+                    { label: '2:1', value: 2 / 1 }
+                ]
+            },
+            {
+                name: 'LIDIO JI',
+                ratios: [
+                    { label: '1:1', value: 1 / 1 },
+                    { label: '9:8', value: 9 / 8 },
+                    { label: '5:4', value: 5 / 4 },
+                    { label: '45:32', value: 45 / 32 },
+                    { label: '3:2', value: 3 / 2 },
+                    { label: '27:16', value: 27 / 16 },
+                    { label: '15:8', value: 15 / 8 },
+                    { label: '2:1', value: 2 / 1 }
+                ]
+            },
+            {
+                name: 'ARMÓNICA',
+                ratios: [
+                    { label: '1:1', value: 1 / 1 },
+                    { label: '9:8', value: 9 / 8 },
+                    { label: '5:4', value: 5 / 4 },
+                    { label: '11:8', value: 11 / 8 },
+                    { label: '3:2', value: 3 / 2 },
+                    { label: '13:8', value: 13 / 8 },
+                    { label: '7:4', value: 7 / 4 },
+                    { label: '2:1', value: 2 / 1 }
+                ]
+            }
+        ];
+
+        // ========================================================================
+        // 2. MOTOR DE AUDIO POLIFÓNICO ANTI-SATURACIÓN (WEB AUDIO API)
+        // ========================================================================
+        class JustIntonationSynth {
+            constructor() {
+                this.ctx = null;
+                this.masterGain = null;
+                this.dryGain = null;
+                this.wetGain = null;
+                this.delayNode = null;
+                this.feedbackGain = null;
+                this.delayFilter = null;
+                this.isEnabled = false;
+                this.isUnlocked = false;
+
+                // Límites de polifonía y cadencia para evitar saturación cuando la pelota va rápido
+                this.activeVoices = 0;
+                this.maxVoices = 15;
+                this.lastTriggerTime = 0;
+            }
+
+            init() {
+                if (this.ctx) return;
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+
+                try {
+                    this.ctx = new AudioContextClass();
+
+                    // Compresor dinámico firme para mantener limpio el bus ante acordes rápidos
+                    const compressor = this.ctx.createDynamicsCompressor();
+                    compressor.threshold.setValueAtTime(-22, this.ctx.currentTime);
+                    compressor.knee.setValueAtTime(24, this.ctx.currentTime);
+                    compressor.ratio.setValueAtTime(8, this.ctx.currentTime);
+                    compressor.attack.setValueAtTime(0.004, this.ctx.currentTime);
+                    compressor.release.setValueAtTime(0.2, this.ctx.currentTime);
+
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.gain.setValueAtTime(1.15, this.ctx.currentTime);
+
+                    // Eco espacial cálido con filtro paso bajo y retroalimentación controlada
+                    this.delayNode = this.ctx.createDelay(1.0);
+                    this.delayNode.delayTime.setValueAtTime(0.22, this.ctx.currentTime);
+
+                    this.delayFilter = this.ctx.createBiquadFilter();
+                    this.delayFilter.type = 'lowpass';
+                    this.delayFilter.frequency.setValueAtTime(1550, this.ctx.currentTime);
+
+                    this.feedbackGain = this.ctx.createGain();
+                    this.feedbackGain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+
+                    this.dryGain = this.ctx.createGain();
+                    this.dryGain.gain.setValueAtTime(0.95, this.ctx.currentTime);
+
+                    this.wetGain = this.ctx.createGain();
+                    this.wetGain.gain.setValueAtTime(0.24, this.ctx.currentTime);
+
+                    // Conexiones: dry + wet -> compressor -> masterGain -> destination
+                    this.dryGain.connect(compressor);
+
+                    this.wetGain.connect(this.delayNode);
+                    this.delayNode.connect(this.delayFilter);
+                    this.delayFilter.connect(this.feedbackGain);
+                    this.feedbackGain.connect(this.delayNode);
+                    this.delayFilter.connect(compressor);
+
+                    compressor.connect(this.masterGain);
+                    this.masterGain.connect(this.ctx.destination);
+
+                    // 3 voces continuas asociadas a los 3 vértices del triángulo donde está la pelota
+                    this.droneVoices = [0, 1, 2].map(() => {
+                        const oscMain = this.ctx.createOscillator();
+                        oscMain.type = 'sine';
+                        oscMain.frequency.setValueAtTime(130.81, this.ctx.currentTime);
+
+                        const oscHarmonic = this.ctx.createOscillator();
+                        oscHarmonic.type = 'triangle';
+                        oscHarmonic.frequency.setValueAtTime(261.63, this.ctx.currentTime);
+
+                        const harmonicGain = this.ctx.createGain();
+                        harmonicGain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+
+                        const filter = this.ctx.createBiquadFilter();
+                        filter.type = 'lowpass';
+                        filter.frequency.setValueAtTime(720, this.ctx.currentTime);
+                        filter.Q.setValueAtTime(0.7, this.ctx.currentTime);
+
+                        const voiceGain = this.ctx.createGain();
+                        voiceGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+
+                        oscMain.connect(filter);
+                        oscHarmonic.connect(harmonicGain);
+                        harmonicGain.connect(filter);
+
+                        filter.connect(voiceGain);
+                        voiceGain.connect(this.dryGain);
+                        voiceGain.connect(this.wetGain);
+
+                        oscMain.start(this.ctx.currentTime);
+                        oscHarmonic.start(this.ctx.currentTime);
+
+                        return { oscMain, oscHarmonic, harmonicGain, filter, voiceGain };
+                    });
+                } catch (err) {
+                    console.warn('Error inicializando Web Audio:', err);
+                }
+            }
+
+            async unlockAndEnable(playConfirmation = true) {
+                this.init();
+                this.isEnabled = true;
+
+                if (!this.ctx) return false;
+
+                try {
+                    if (this.ctx.state === 'suspended') {
+                        await this.ctx.resume();
+                    }
+
+                    // Buffer silencioso para desbloquear el contexto en iOS / Safari / Chrome
+                    if (!this.isUnlocked) {
+                        const buffer = this.ctx.createBuffer(1, 1, 22050);
+                        const source = this.ctx.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(this.ctx.destination);
+                        source.start(0);
+                        this.isUnlocked = true;
+                    }
+
+                    const ready = this.ctx.state === 'running';
+                    if (this.masterGain) {
+                        const now = this.ctx.currentTime;
+                        this.masterGain.gain.cancelScheduledValues(now);
+                        this.masterGain.gain.setValueAtTime(Math.max(0.001, this.masterGain.gain.value), now);
+                        this.masterGain.gain.linearRampToValueAtTime(1.15, now + 0.04);
+                    }
+
+                    if (ready && playConfirmation) {
+                        const f0 = getActiveFundamentalFreq();
+                        const previewVertices = [
+                            { freq: f0 * 1, ratioObj: { label: '1:1' } },
+                            { freq: f0 * (5 / 4), ratioObj: { label: '5:4' } },
+                            { freq: f0 * (3 / 2), ratioObj: { label: '3:2' } }
+                        ];
+                        this.updateContinuousTriad(previewVertices, [0.85, 0.75, 0.85], 1.0);
+                        this.triggerTriad(previewVertices, [0.8, 0.7, 0.8], 1.0, false, true);
+                    }
+
+                    return ready;
+                } catch (err) {
+                    console.warn('No se pudo desbloquear el audio:', err);
+                    return false;
+                }
+            }
+
+            disable() {
+                this.isEnabled = false;
+                if (this.ctx) {
+                    try {
+                        const now = this.ctx.currentTime;
+                        if (this.masterGain) {
+                            this.masterGain.gain.cancelScheduledValues(now);
+                            this.masterGain.gain.setValueAtTime(Math.max(0.001, this.masterGain.gain.value), now);
+                            this.masterGain.gain.linearRampToValueAtTime(0.0001, now + 0.05);
+                        }
+                        if (this.droneVoices) {
+                            this.droneVoices.forEach(v => {
+                                v.voiceGain.gain.cancelScheduledValues(now);
+                                v.voiceGain.gain.setTargetAtTime(0.0001, now, 0.03);
+                            });
+                        }
+                    } catch (err) {
+                        // Ignorar errores en transición de ganancia
+                    }
+                }
+            }
+
+            /**
+             * Mantiene las 3 notas del triángulo actual sonando de forma continua y suave,
+             * ajustando frecuencias y pesos baricéntricos sin generar clics ni saturación.
+             */
+            updateContinuousTriad(vertices, barycentricWeights, speedFactor = 1.0) {
+                if (!this.ctx || !this.droneVoices) return;
+                const now = this.ctx.currentTime;
+
+                if (!this.isEnabled || this.ctx.state !== 'running') {
+                    this.droneVoices.forEach(v => {
+                        v.voiceGain.gain.setTargetAtTime(0.0001, now, 0.04);
+                    });
+                    return;
+                }
+
+                const speedScale = Math.max(1.0, speedFactor);
+                const speedAttenuation = 1 / Math.pow(speedScale, 0.35);
+
+                vertices.forEach((vertex, idx) => {
+                    const voice = this.droneVoices[idx];
+                    if (!voice) return;
+
+                    const weight = Math.max(0.08, Math.min(1.0, barycentricWeights[idx] ?? 0.33));
+                    const freq = vertex.freq;
+                    const targetGain = (0.045 + weight * 0.145) * speedAttenuation;
+
+                    voice.oscMain.frequency.setTargetAtTime(freq, now, 0.045);
+                    voice.oscHarmonic.frequency.setTargetAtTime(freq * 2, now, 0.045);
+                    voice.harmonicGain.gain.setTargetAtTime(0.045 * weight * speedAttenuation, now, 0.05);
+                    voice.filter.frequency.setTargetAtTime(Math.min(3200, freq * (2.6 + weight * 1.6)), now, 0.05);
+                    voice.voiceGain.gain.setTargetAtTime(Math.max(0.0002, targetGain), now, 0.05);
+                });
+            }
+
+            /**
+             * Acento transitorio en rebotes o cambios de celda, con volumen reforzado
+             * y control de saturación cuando la pelota se mueve rápido.
+             */
+            triggerTriad(vertices, barycentricWeights, speedFactor = 1.0, isWallBounce = false, bypassCooldown = false) {
+                if (!this.isEnabled) return;
+                if (!this.ctx) this.init();
+                if (!this.ctx) return;
+
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+                if (this.ctx.state !== 'running') return;
+
+                const now = this.ctx.currentTime;
+
+                // Cooldown mínimo entre acordes cuando la partícula se mueve rápido
+                const minInterval = bypassCooldown ? 0 : (isWallBounce ? 0.085 : 0.065);
+                if (now - this.lastTriggerTime < minInterval) return;
+
+                // Si ya hay demasiadas voces sonando, evitar acumular más y saturar
+                if (this.activeVoices >= this.maxVoices) return;
+
+                this.lastTriggerTime = now;
+
+                const speedScale = Math.max(1.0, speedFactor);
+                const sustainTime = isWallBounce
+                    ? Math.max(0.28, Math.min(0.8, 0.65 / speedScale))
+                    : Math.max(0.38, Math.min(1.1, 0.9 / Math.sqrt(speedScale)));
+                const attackTime = isWallBounce ? 0.012 : 0.02;
+                const releaseTime = sustainTime;
+
+                // Atenuación progresiva por velocidad y número de voces activas
+                const voiceLoadFactor = Math.max(0.45, 1 - (this.activeVoices / (this.maxVoices * 1.4)));
+                const speedAttenuation = (1 / Math.pow(speedScale, 0.65)) * voiceLoadFactor;
+
+                vertices.forEach((vertex, idx) => {
+                    if (this.activeVoices >= this.maxVoices) return;
+                    this.activeVoices++;
+
+                    const weight = Math.max(0.2, Math.min(1.0, barycentricWeights[idx] ?? 0.5));
+                    const freq = vertex.freq;
+
+                    const oscMain = this.ctx.createOscillator();
+                    oscMain.type = 'sine';
+                    oscMain.frequency.setValueAtTime(freq, now);
+
+                    const oscHarmonic = this.ctx.createOscillator();
+                    oscHarmonic.type = 'triangle';
+                    oscHarmonic.frequency.setValueAtTime(freq * 2, now);
+
+                    const harmonicGain = this.ctx.createGain();
+                    harmonicGain.gain.setValueAtTime((isWallBounce ? 0.055 : 0.042) * weight * speedAttenuation, now);
+
+                    const filter = this.ctx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(Math.min(3200, freq * (isWallBounce ? 3.8 : 3.2)), now);
+                    filter.Q.setValueAtTime(0.65, now);
+
+                    const voiceGain = this.ctx.createGain();
+                    const baseAmp = isWallBounce ? 0.16 : 0.145;
+                    const peakAmp = Math.max(0.02, baseAmp * (0.45 + 0.55 * weight) * speedAttenuation);
+
+                    voiceGain.gain.setValueAtTime(0.0001, now);
+                    voiceGain.gain.linearRampToValueAtTime(peakAmp, now + attackTime);
+                    voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + attackTime + sustainTime + releaseTime);
+
+                    oscMain.connect(filter);
+                    oscHarmonic.connect(harmonicGain);
+                    harmonicGain.connect(filter);
+
+                    filter.connect(voiceGain);
+                    voiceGain.connect(this.dryGain);
+                    voiceGain.connect(this.wetGain);
+
+                    oscMain.start(now);
+                    oscHarmonic.start(now);
+
+                    const stopTime = now + attackTime + sustainTime + releaseTime + 0.05;
+                    oscMain.stop(stopTime);
+                    oscHarmonic.stop(stopTime);
+
+                    oscMain.onended = () => {
+                        this.activeVoices = Math.max(0, this.activeVoices - 1);
+                        try {
+                            oscMain.disconnect();
+                            oscHarmonic.disconnect();
+                            harmonicGain.disconnect();
+                            filter.disconnect();
+                            voiceGain.disconnect();
+                        } catch (e) {
+                            // Ignorar errores al desconectar nodos ya finalizados
+                        }
+                    };
+                });
+            }
+        }
+
+        // ========================================================================
+        // 3. ESTRUCTURA DE MALLA TRIANGULAR REGULAR Y COORDENADAS BARICÉNTRICAS
+        // ========================================================================
+        class TriangleLattice {
+            constructor() {
+                this.vertices = [];
+                this.triangles = [];
+                this.bounds = { left: 0, right: 0, top: 0, bottom: 0 };
+            }
+
+            /**
+             * Calcula las coordenadas baricéntricas (u, v, w) de un punto (px, py)
+             * respecto a un triángulo [a, b, c].
+             */
+            getBarycentric(px, py, tri) {
+                const [a, b, c] = tri.v;
+                const v0x = c.x - a.x;
+                const v0y = c.y - a.y;
+                const v1x = b.x - a.x;
+                const v1y = b.y - a.y;
+                const v2x = px - a.x;
+                const v2y = py - a.y;
+
+                const dot00 = v0x * v0x + v0y * v0y;
+                const dot01 = v0x * v1x + v0y * v1y;
+                const dot02 = v0x * v2x + v0y * v2y;
+                const dot11 = v1x * v1x + v1y * v1y;
+                const dot12 = v1x * v2x + v1y * v2y;
+
+                const denom = dot00 * dot11 - dot01 * dot01;
+                if (Math.abs(denom) < 1e-8) {
+                    return { inside: false, weights: [0.33, 0.33, 0.34] };
+                }
+
+                const invDenom = 1 / denom;
+                const u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+                const v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+                const w = 1 - u - v;
+
+                const eps = -0.02;
+                const inside = (u >= eps) && (v >= eps) && (w >= eps);
+
+                // Orden [a, b, c]: w -> peso de a, v -> peso de b, u -> peso de c
+                const weights = [
+                    Math.max(0, w),
+                    Math.max(0, v),
+                    Math.max(0, u)
+                ];
+                const sum = weights[0] + weights[1] + weights[2];
+                if (sum > 1e-6) {
+                    weights[0] /= sum;
+                    weights[1] /= sum;
+                    weights[2] /= sum;
+                } else {
+                    weights[0] = 0.333;
+                    weights[1] = 0.333;
+                    weights[2] = 0.334;
+                }
+
+                return { inside, weights };
+            }
+
+            findTriangleAt(px, py) {
+                for (let i = 0; i < this.triangles.length; i++) {
+                    const tri = this.triangles[i];
+                    if (this.getBarycentric(px, py, tri).inside) {
+                        return tri;
+                    }
+                }
+                return null;
+            }
+
+            toggleSolidAt(px, py) {
+                const tri = this.findTriangleAt(px, py);
+                if (!tri) return null;
+
+                tri.solid = !tri.solid;
+                tri.bounceFlash = tri.solid ? 1.0 : 0.4;
+                updateSolidCounter();
+                return tri;
+            }
+
+            clearAllSolids() {
+                this.triangles.forEach(t => {
+                    t.solid = false;
+                    t.bounceFlash = 0;
+                });
+                updateSolidCounter();
+            }
+
+            createTriangle(verts) {
+                return {
+                    id: this.triangles.length,
+                    v: verts,
+                    solid: false,
+                    highlight: 0,
+                    bounceFlash: 0
+                };
+            }
+
+            /**
+             * Asigna frecuencias de entonación justa a partir de un sistema y una fundamental,
+             * buscando que los 3 vértices de cada triángulo suenen distintos cuando es posible.
+             */
+            assignJustIntonation(jiSystem, fundamentalFreq) {
+                const ratios = jiSystem.ratios;
+                const f0 = fundamentalFreq;
+
+                const adjacency = new Map();
+                this.vertices.forEach(v => adjacency.set(v.id, new Set()));
+                this.triangles.forEach(tri => {
+                    const [a, b, c] = tri.v;
+                    adjacency.get(a.id).add(b.id).add(c.id);
+                    adjacency.get(b.id).add(a.id).add(c.id);
+                    adjacency.get(c.id).add(a.id).add(b.id);
+                });
+
+                const assignedIndices = new Map();
+
+                this.vertices.forEach((v, idx) => {
+                    const forbidden = new Set();
+                    adjacency.get(v.id).forEach(neighborId => {
+                        if (assignedIndices.has(neighborId)) {
+                            forbidden.add(assignedIndices.get(neighborId));
+                        }
+                    });
+
+                    const candidates = [];
+                    for (let rIdx = 0; rIdx < ratios.length; rIdx++) {
+                        if (!forbidden.has(rIdx)) candidates.push(rIdx);
+                    }
+
+                    const chosenRatioIdx = candidates.length > 0
+                        ? candidates[(idx * 3 + Math.floor(Math.random() * candidates.length)) % candidates.length]
+                        : idx % ratios.length;
+
+                    assignedIndices.set(v.id, chosenRatioIdx);
+
+                    const ratioObj = ratios[chosenRatioIdx];
+                    const octaveShift = (idx % 5 === 0 && ratioObj.value < 1.25) ? 2 : 1;
+                    v.ratioObj = ratioObj;
+                    v.freq = f0 * ratioObj.value * octaveShift;
+                });
+            }
+
+            updateVertices(timeMs) {
+                for (let i = 0; i < this.vertices.length; i++) {
+                    const v = this.vertices[i];
+                    if (!v.isBoundary) {
+                        v.x = v.baseX + Math.cos(timeMs * v.driftSpeed + v.phase) * v.driftRadiusX;
+                        v.y = v.baseY + Math.sin(timeMs * v.driftSpeed * 0.85 + v.phase * 1.3) * v.driftRadiusY;
+                    }
+                    if (v.flash > 0) {
+                        v.flash = Math.max(0, v.flash - 0.025);
+                    }
+                }
+
+                for (let i = 0; i < this.triangles.length; i++) {
+                    const tri = this.triangles[i];
+                    if (tri.highlight > 0) tri.highlight = Math.max(0, tri.highlight - 0.02);
+                    if (tri.bounceFlash > 0) tri.bounceFlash = Math.max(0, tri.bounceFlash - 0.045);
+                }
+            }
+
+            /**
+             * Genera una malla triangular regular sobre el área útil conservando
+             * el estado sólido de triángulos previos si se solicita.
+             */
+            generate(width, height, preserveSolids = false) {
+                const previousSolidCenters = preserveSolids
+                    ? this.triangles
+                        .filter(t => t.solid)
+                        .map(t => ({
+                            x: (t.v[0].baseX + t.v[1].baseX + t.v[2].baseX) / 3,
+                            y: (t.v[0].baseY + t.v[1].baseY + t.v[2].baseY) / 3
+                        }))
+                    : [];
+
+                const padX = Math.max(16, Math.min(48, width * 0.04));
+                const topPad = Math.max(76, Math.min(104, height * 0.13));
+                const bottomPad = Math.max(76, Math.min(104, height * 0.14));
+
+                this.bounds = {
+                    left: padX,
+                    right: Math.max(padX + 160, width - padX),
+                    top: topPad,
+                    bottom: Math.max(topPad + 160, height - bottomPad)
+                };
+
+                const usableW = this.bounds.right - this.bounds.left;
+                const usableH = this.bounds.bottom - this.bounds.top;
+
+                const targetCellsX = Math.max(4, Math.min(10, Math.round(usableW / 120)));
+                const targetCellsY = Math.max(4, Math.min(9, Math.round(usableH / 120)));
+
+                const stepX = usableW / targetCellsX;
+                const stepY = usableH / targetCellsY;
+
+                this.vertices = [];
+                const gridIds = [];
+
+                for (let row = 0; row <= targetCellsY; row++) {
+                    const rowIds = [];
+
+                    for (let col = 0; col <= targetCellsX; col++) {
+                        const isBoundary = (row === 0 || row === targetCellsY || col === 0 || col === targetCellsX);
+                        const baseX = this.bounds.left + col * stepX;
+                        const baseY = this.bounds.top + row * stepY;
+
+                        const vertex = {
+                            id: this.vertices.length,
+                            x: baseX,
+                            y: baseY,
+                            baseX,
+                            baseY,
+                            isBoundary,
+                            phase: 0,
+                            driftRadiusX: 0,
+                            driftRadiusY: 0,
+                            driftSpeed: 0,
+                            freq: 261.63,
+                            ratioObj: { label: '1:1', value: 1 },
+                            flash: 0
+                        };
+
+                        this.vertices.push(vertex);
+                        rowIds.push(vertex.id);
+                    }
+                    gridIds.push(rowIds);
+                }
+
+                this.triangles = [];
+                for (let row = 0; row < targetCellsY; row++) {
+                    for (let col = 0; col < targetCellsX; col++) {
+                        const a = this.vertices[gridIds[row][col]];
+                        const b = this.vertices[gridIds[row][col + 1]];
+                        const c = this.vertices[gridIds[row + 1][col]];
+                        const d = this.vertices[gridIds[row + 1][col + 1]];
+
+                        // Subdivisión regular y uniforme en cada celda de la cuadrícula
+                        this.triangles.push(this.createTriangle([a, b, d]));
+                        this.triangles.push(this.createTriangle([a, d, c]));
+                    }
+                }
+
+                if (previousSolidCenters.length > 0) {
+                    previousSolidCenters.forEach(pt => {
+                        const match = this.findTriangleAt(pt.x, pt.y);
+                        if (match) match.solid = true;
+                    });
+                }
+
+                updateSolidCounter();
+            }
+        }
+
+        // ========================================================================
+        // 4. FÍSICA DE LA PARTÍCULA, COLISIONES Y EFECTOS VISUALES
+        // ========================================================================
+        const lattice = new TriangleLattice();
+        const synth = new JustIntonationSynth();
+
+        const particle = {
+            x: 300,
+            y: 260,
+            vx: 135,
+            vy: 95,
+            radius: 7.5,
+            trail: [],
+            maxTrail: 28
+        };
+
+        let ripples = [];
+        let activeTriangleId = -1;
+        let activeWeights = [0.33, 0.33, 0.34];
+
+        let currentScaleIndex = 0;
+        let currentFundamentalIndex = 7; // C3
+        let isPaused = false;
+        let isDarkTheme = false;
+        const speedOptions = [0.6, 1.0, 1.5, 2.2];
+        let speedIdx = 1;
+        let speedMultiplier = speedOptions[speedIdx];
+
+        function getActiveFundamentalFreq() {
+            return FUNDAMENTAL_NOTES[currentFundamentalIndex].freq;
+        }
+
+        function spawnVertexRipples(vertices, weights) {
+            vertices.forEach((v, idx) => {
+                v.flash = Math.min(1.0, v.flash + 0.55 + (weights[idx] || 0) * 0.45);
+                ripples.push({
+                    x: v.x,
+                    y: v.y,
+                    radius: 4,
+                    maxRadius: 24 + (weights[idx] || 0.5) * 28,
+                    alpha: 0.65
+                });
+            });
+            if (ripples.length > 48) {
+                ripples = ripples.slice(-48);
+            }
+        }
+
+        function applyTuningToLattice(retriggerActive = true) {
+            const system = JI_SYSTEMS[currentScaleIndex];
+            const f0 = getActiveFundamentalFreq();
+            lattice.assignJustIntonation(system, f0);
+
+            if (retriggerActive && activeTriangleId >= 0 && activeTriangleId < lattice.triangles.length) {
+                const tri = lattice.triangles[activeTriangleId];
+                synth.triggerTriad(tri.v, activeWeights, speedMultiplier, false, true);
+                spawnVertexRipples(tri.v, activeWeights);
+                activeRatiosText.textContent = `${tri.v[0].ratioObj.label} · ${tri.v[1].ratioObj.label} · ${tri.v[2].ratioObj.label}`;
+            }
+        }
+
+        /**
+         * Resuelve colisiones elásticas de la partícula contra los bordes exteriores
+         * de la malla y contra los 3 lados de cada triángulo sólido.
+         */
+        function resolveCollisions(dt) {
+            const b = lattice.bounds;
+            const r = particle.radius;
+
+            // 1. Bordes exteriores de la red
+            if (particle.x - r < b.left) {
+                particle.x = b.left + r;
+                particle.vx = Math.abs(particle.vx);
+            } else if (particle.x + r > b.right) {
+                particle.x = b.right - r;
+                particle.vx = -Math.abs(particle.vx);
+            }
+
+            if (particle.y - r < b.top) {
+                particle.y = b.top + r;
+                particle.vy = Math.abs(particle.vy);
+            } else if (particle.y + r > b.bottom) {
+                particle.y = b.bottom - r;
+                particle.vy = -Math.abs(particle.vy);
+            }
+
+            // 2. Colisiones contra triángulos marcados como sólidos
+            let bouncedSolidTri = null;
+
+            for (let i = 0; i < lattice.triangles.length; i++) {
+                const tri = lattice.triangles[i];
+                if (!tri.solid) continue;
+
+                const verts = tri.v;
+                for (let e = 0; e < 3; e++) {
+                    const p1 = verts[e];
+                    const p2 = verts[(e + 1) % 3];
+
+                    const abx = p2.x - p1.x;
+                    const aby = p2.y - p1.y;
+                    const lenSq = abx * abx + aby * aby;
+                    if (lenSq < 1e-6) continue;
+
+                    const t = Math.max(0, Math.min(1, ((particle.x - p1.x) * abx + (particle.y - p1.y) * aby) / lenSq));
+                    const closestX = p1.x + abx * t;
+                    const closestY = p1.y + aby * t;
+
+                    const dx = particle.x - closestX;
+                    const dy = particle.y - closestY;
+                    const distSq = dx * dx + dy * dy;
+
+                    if (distSq < r * r) {
+                        const dist = Math.sqrt(distSq) || 0.001;
+                        let nx = dx / dist;
+                        let ny = dy / dist;
+
+                        // Si el centro de la partícula quedó dentro del triángulo sólido, empujar hacia afuera del centroide
+                        const insideCheck = lattice.getBarycentric(particle.x, particle.y, tri).inside;
+                        if (insideCheck) {
+                            const cx = (verts[0].x + verts[1].x + verts[2].x) / 3;
+                            const cy = (verts[0].y + verts[1].y + verts[2].y) / 3;
+                            const outX = particle.x - cx;
+                            const outY = particle.y - cy;
+                            const outLen = Math.hypot(outX, outY) || 1;
+                            nx = outX / outLen;
+                            ny = outY / outLen;
+                        }
+
+                        const overlap = r - dist + 0.5;
+                        particle.x += nx * overlap;
+                        particle.y += ny * overlap;
+
+                        const vn = particle.vx * nx + particle.vy * ny;
+                        if (vn < 0) {
+                            particle.vx -= 2 * vn * nx;
+                            particle.vy -= 2 * vn * ny;
+                            tri.bounceFlash = 1.0;
+                            bouncedSolidTri = tri;
+                        }
+                    }
+                }
+            }
+
+            if (bouncedSolidTri) {
+                const bary = lattice.getBarycentric(particle.x, particle.y, bouncedSolidTri);
+                synth.triggerTriad(bouncedSolidTri.v, bary.weights, speedMultiplier, true, false);
+                spawnVertexRipples(bouncedSolidTri.v, bary.weights);
+                activeRatiosText.textContent = `${bouncedSolidTri.v[0].ratioObj.label} · ${bouncedSolidTri.v[1].ratioObj.label} · ${bouncedSolidTri.v[2].ratioObj.label}`;
+            }
+
+            // Mantener rapidez base constante con pequeña variación orgánica
+            const currentSpeed = Math.hypot(particle.vx, particle.vy);
+            const targetSpeed = 165;
+            if (currentSpeed > 1e-4) {
+                const blendedSpeed = currentSpeed + (targetSpeed - currentSpeed) * Math.min(1, dt * 4.5);
+                particle.vx = (particle.vx / currentSpeed) * blendedSpeed;
+                particle.vy = (particle.vy / currentSpeed) * blendedSpeed;
+            }
+        }
+
+        function updateSimulation(dt) {
+            const effectiveDt = dt * speedMultiplier;
+
+            particle.x += particle.vx * effectiveDt;
+            particle.y += particle.vy * effectiveDt;
+
+            resolveCollisions(effectiveDt);
+
+            particle.trail.push({ x: particle.x, y: particle.y });
+            if (particle.trail.length > particle.maxTrail) {
+                particle.trail.shift();
+            }
+
+            // Detectar triángulo permeable actual para activar su tríada al entrar
+            let currentTri = null;
+            let currentWeights = [0.33, 0.33, 0.34];
+
+            for (let i = 0; i < lattice.triangles.length; i++) {
+                const tri = lattice.triangles[i];
+                const res = lattice.getBarycentric(particle.x, particle.y, tri);
+                if (res.inside) {
+                    currentTri = tri;
+                    currentWeights = res.weights;
+                    break;
+                }
+            }
+
+            if (currentTri) {
+                activeWeights = currentWeights;
+                currentTri.highlight = Math.max(currentTri.highlight, 0.45);
+                synth.updateContinuousTriad(currentTri.v, currentWeights, speedMultiplier);
+
+                if (!currentTri.solid && currentTri.id !== activeTriangleId) {
+                    activeTriangleId = currentTri.id;
+                    currentTri.highlight = 1.0;
+                    synth.triggerTriad(currentTri.v, currentWeights, speedMultiplier, false, false);
+                    spawnVertexRipples(currentTri.v, currentWeights);
+                    activeRatiosText.textContent = `${currentTri.v[0].ratioObj.label} · ${currentTri.v[1].ratioObj.label} · ${currentTri.v[2].ratioObj.label}`;
+                }
+            }
+
+            for (let i = ripples.length - 1; i >= 0; i--) {
+                const rp = ripples[i];
+                rp.radius += 28 * dt;
+                rp.alpha -= 1.05 * dt;
+                if (rp.alpha <= 0) {
+                    ripples.splice(i, 1);
+                }
+            }
+        }
+
+        // ========================================================================
+        // 5. RENDERIZADO DE GALERÍA MINIMALISTA EN CANVAS
+        // ========================================================================
+        const canvas = document.getElementById('lattice-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function renderScene() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            const bg = isDarkTheme ? '#121211' : '#F6F5F0';
+            const strokeLine = isDarkTheme ? 'rgba(242, 240, 233, 0.16)' : 'rgba(20, 20, 19, 0.15)';
+            const solidFill = isDarkTheme ? 'rgba(255, 77, 56, 0.24)' : 'rgba(214, 56, 38, 0.17)';
+            const solidStroke = isDarkTheme ? 'rgba(255, 77, 56, 0.85)' : 'rgba(214, 56, 38, 0.82)';
+            const vertexInk = isDarkTheme ? '#F2F0E9' : '#141413';
+            const mutedInk = isDarkTheme ? 'rgba(242, 240, 233, 0.52)' : 'rgba(20, 20, 19, 0.52)';
+            const accent = isDarkTheme ? '#FF4D38' : '#D63826';
+
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, width, height);
+
+            // Dibujar triángulos (resaltado activo y bloques sólidos)
+            for (let i = 0; i < lattice.triangles.length; i++) {
+                const tri = lattice.triangles[i];
+                const [a, b, c] = tri.v;
+
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.lineTo(c.x, c.y);
+                ctx.closePath();
+
+                if (tri.solid) {
+                    ctx.fillStyle = solidFill;
+                    ctx.fill();
+                    ctx.lineWidth = tri.bounceFlash > 0.05 ? 2.2 : 1.4;
+                    ctx.strokeStyle = solidStroke;
+                    ctx.stroke();
+                } else {
+                    if (tri.highlight > 0.01) {
+                        ctx.fillStyle = isDarkTheme
+                            ? `rgba(255, 77, 56, ${tri.highlight * 0.09})`
+                            : `rgba(214, 56, 38, ${tri.highlight * 0.075})`;
+                        ctx.fill();
+                    }
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = strokeLine;
+                    ctx.stroke();
+                }
+            }
+
+            // Ondas expansivas en vértices activados
+            for (let i = 0; i < ripples.length; i++) {
+                const rp = ripples[i];
+                ctx.beginPath();
+                ctx.arc(rp.x, rp.y, rp.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = isDarkTheme
+                    ? `rgba(255, 77, 56, ${Math.max(0, rp.alpha)})`
+                    : `rgba(214, 56, 38, ${Math.max(0, rp.alpha)})`;
+                ctx.lineWidth = 1.25;
+                ctx.stroke();
+            }
+
+            // Estela de la partícula
+            if (particle.trail.length > 1) {
+                for (let i = 1; i < particle.trail.length; i++) {
+                    const p0 = particle.trail[i - 1];
+                    const p1 = particle.trail[i];
+                    const ratio = i / particle.trail.length;
+
+                    ctx.beginPath();
+                    ctx.moveTo(p0.x, p0.y);
+                    ctx.lineTo(p1.x, p1.y);
+                    ctx.strokeStyle = isDarkTheme
+                        ? `rgba(255, 77, 56, ${ratio * 0.45})`
+                        : `rgba(214, 56, 38, ${ratio * 0.4})`;
+                    ctx.lineWidth = ratio * 4.5;
+                    ctx.lineCap = 'round';
+                    ctx.stroke();
+                }
+            }
+
+            // Vértices y etiquetas discretas de proporción
+            const showLabels = lattice.vertices.length <= 72;
+            ctx.font = '400 9px "Space Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+
+            for (let i = 0; i < lattice.vertices.length; i++) {
+                const v = lattice.vertices[i];
+                const radius = 2.6 + v.flash * 3.4;
+
+                ctx.beginPath();
+                ctx.arc(v.x, v.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = v.flash > 0.15 ? accent : vertexInk;
+                ctx.fill();
+
+                if (showLabels && !v.isBoundary) {
+                    ctx.fillStyle = v.flash > 0.15 ? accent : mutedInk;
+                    ctx.fillText(v.ratioObj.label, v.x, v.y - radius - 3);
+                }
+            }
+
+            // Partícula principal
+            ctx.beginPath();
+            ctx.arc(particle.x, particle.y, particle.radius + 3.5, 0, Math.PI * 2);
+            ctx.strokeStyle = isDarkTheme ? 'rgba(255, 77, 56, 0.28)' : 'rgba(214, 56, 38, 0.24)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+            ctx.fillStyle = accent;
+            ctx.fill();
+        }
+
+        // ========================================================================
+        // 6. INTERACCIÓN TÁCTIL / PUNTERO Y CONTROLES DE INTERFAZ
+        // ========================================================================
+        const btnAudio = document.getElementById('btn-audio');
+        const btnEnter = document.getElementById('btn-enter');
+        const audioGate = document.getElementById('audio-gate');
+        const statusDot = document.getElementById('status-dot');
+        const activeRatiosText = document.getElementById('active-ratios');
+        const btnTheme = document.getElementById('btn-theme');
+        const btnScale = document.getElementById('btn-scale');
+        const scaleLabel = document.getElementById('scale-label');
+        const btnFundamental = document.getElementById('btn-fundamental');
+        const fundamentalLabel = document.getElementById('fundamental-label');
+        const btnSpeed = document.getElementById('btn-speed');
+        const speedLabel = document.getElementById('speed-label');
+        const btnClearSolids = document.getElementById('btn-clear-solids');
+        const solidCountLabel = document.getElementById('solid-count');
+        const btnRegenerate = document.getElementById('btn-regenerate');
+        const btnPause = document.getElementById('btn-pause');
+
+        function updateSolidCounter() {
+            const count = lattice.triangles.filter(t => t.solid).length;
+            solidCountLabel.textContent = String(count);
+        }
+
+        function syncAudioUI(isOn) {
+            if (isOn) {
+                btnAudio.textContent = 'AUDIO ON';
+                btnAudio.classList.add('is-active');
+                statusDot.classList.remove('bg-[#6E6D68]');
+                statusDot.classList.add('bg-[#D63826]');
+                audioGate.classList.add('is-hidden');
+            } else {
+                btnAudio.textContent = 'AUDIO OFF';
+                btnAudio.classList.remove('is-active');
+                statusDot.classList.remove('bg-[#D63826]');
+                statusDot.classList.add('bg-[#6E6D68]');
+            }
+        }
+
+        btnEnter.addEventListener('click', async () => {
+            const ok = await synth.unlockAndEnable(true);
+            syncAudioUI(ok || synth.isEnabled);
+        });
+
+        btnAudio.addEventListener('click', async () => {
+            if (synth.isEnabled) {
+                synth.disable();
+                syncAudioUI(false);
+            } else {
+                const ok = await synth.unlockAndEnable(true);
+                syncAudioUI(ok || synth.isEnabled);
+            }
+        });
+
+        btnTheme.addEventListener('click', () => {
+            isDarkTheme = !isDarkTheme;
+            document.documentElement.classList.toggle('dark-gallery', isDarkTheme);
+            btnTheme.textContent = isDarkTheme ? 'DÍA' : 'NOCHE';
+        });
+
+        btnScale.addEventListener('click', () => {
+            currentScaleIndex = (currentScaleIndex + 1) % JI_SYSTEMS.length;
+            scaleLabel.textContent = JI_SYSTEMS[currentScaleIndex].name;
+            applyTuningToLattice(true);
+        });
+
+        btnFundamental.addEventListener('click', () => {
+            currentFundamentalIndex = (currentFundamentalIndex + 1) % FUNDAMENTAL_NOTES.length;
+            fundamentalLabel.textContent = FUNDAMENTAL_NOTES[currentFundamentalIndex].label;
+            applyTuningToLattice(true);
+        });
+
+        btnSpeed.addEventListener('click', () => {
+            speedIdx = (speedIdx + 1) % speedOptions.length;
+            speedMultiplier = speedOptions[speedIdx];
+            speedLabel.textContent = `${speedMultiplier.toFixed(1)}x`;
+        });
+
+        btnClearSolids.addEventListener('click', () => {
+            lattice.clearAllSolids();
+        });
+
+        btnRegenerate.addEventListener('click', () => {
+            lattice.generate(window.innerWidth, window.innerHeight, false);
+            applyTuningToLattice(false);
+            activeTriangleId = -1;
+            ripples = [];
+            const b = lattice.bounds;
+            particle.x = (b.left + b.right) * 0.5;
+            particle.y = (b.top + b.bottom) * 0.5;
+            particle.trail = [];
+        });
+
+        btnPause.addEventListener('click', () => {
+            isPaused = !isPaused;
+            btnPause.textContent = isPaused ? 'REANUDAR' : 'PAUSA';
+            btnPause.classList.toggle('is-active', isPaused);
+            if (isPaused && synth.droneVoices && synth.ctx) {
+                const now = synth.ctx.currentTime;
+                synth.droneVoices.forEach(v => {
+                    v.voiceGain.gain.setTargetAtTime(0.0001, now, 0.04);
+                });
+            }
+        });
+
+        // Gestos de puntero/táctil: toque corto alterna sólido; arrastre impulsa la partícula
+        let pointerDownPos = null;
+        let lastPointerPos = null;
+        let isDragging = false;
+
+        canvas.addEventListener('pointerdown', async (e) => {
+            if (!synth.isEnabled) {
+                const ok = await synth.unlockAndEnable(false);
+                syncAudioUI(ok || synth.isEnabled);
+            } else if (synth.ctx && synth.ctx.state === 'suspended') {
+                synth.ctx.resume().catch(() => {});
+            }
+
+            pointerDownPos = { x: e.clientX, y: e.clientY };
+            lastPointerPos = { x: e.clientX, y: e.clientY };
+            isDragging = false;
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (!pointerDownPos || !lastPointerPos) return;
+
+            const totalDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+            if (totalDist > 8) {
+                isDragging = true;
+            }
+
+            if (isDragging) {
+                const dx = e.clientX - lastPointerPos.x;
+                const dy = e.clientY - lastPointerPos.y;
+                particle.vx += dx * 22;
+                particle.vy += dy * 22;
+
+                const spd = Math.hypot(particle.vx, particle.vy);
+                const maxSpd = 460;
+                if (spd > maxSpd) {
+                    particle.vx = (particle.vx / spd) * maxSpd;
+                    particle.vy = (particle.vy / spd) * maxSpd;
+                }
+            }
+
+            lastPointerPos = { x: e.clientX, y: e.clientY };
+        });
+
+        function handlePointerRelease(e) {
+            if (!pointerDownPos) return;
+
+            if (!isDragging) {
+                const tri = lattice.toggleSolidAt(e.clientX, e.clientY);
+                if (tri) {
+                    const bary = lattice.getBarycentric(e.clientX, e.clientY, tri);
+                    synth.triggerTriad(tri.v, bary.weights, speedMultiplier, tri.solid, true);
+                    spawnVertexRipples(tri.v, bary.weights);
+                    activeRatiosText.textContent = `${tri.v[0].ratioObj.label} · ${tri.v[1].ratioObj.label} · ${tri.v[2].ratioObj.label}`;
+                }
+            }
+
+            pointerDownPos = null;
+            lastPointerPos = null;
+            isDragging = false;
+        }
+
+        canvas.addEventListener('pointerup', handlePointerRelease);
+        canvas.addEventListener('pointercancel', handlePointerRelease);
+
+        // Redimensionado fluido manteniendo proporciones
+        function resizeCanvas() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+            canvas.width = Math.floor(width * dpr);
+            canvas.height = Math.floor(height * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            lattice.generate(width, height, true);
+            lattice.assignJustIntonation(JI_SYSTEMS[currentScaleIndex], getActiveFundamentalFreq());
+
+            const b = lattice.bounds;
+            particle.x = Math.max(b.left + particle.radius, Math.min(b.right - particle.radius, particle.x));
+            particle.y = Math.max(b.top + particle.radius, Math.min(b.bottom - particle.radius, particle.y));
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // ========================================================================
+        // 7. INICIALIZACIÓN Y BUCLE PRINCIPAL DE ANIMACIÓN
+        // ========================================================================
+        lattice.generate(window.innerWidth, window.innerHeight, false);
+        lattice.assignJustIntonation(JI_SYSTEMS[currentScaleIndex], getActiveFundamentalFreq());
+
+        const initBounds = lattice.bounds;
+        particle.x = (initBounds.left + initBounds.right) * 0.52;
+        particle.y = (initBounds.top + initBounds.bottom) * 0.48;
+        const initAngle = -0.55;
+        particle.vx = Math.cos(initAngle) * 165;
+        particle.vy = Math.sin(initAngle) * 165;
+
+        let lastFrameTime = performance.now();
+
+        function animationLoop(now) {
+            const rawDt = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
+            const dt = Math.min(0.05, Math.max(0.001, rawDt));
+
+            lattice.updateVertices(now);
+            if (!isPaused) {
+                updateSimulation(dt);
+            }
+            renderScene();
+
+            requestAnimationFrame(animationLoop);
+        }
+
+        resizeCanvas();
+        requestAnimationFrame(animationLoop);
+    </script>
+</body>
+</html>

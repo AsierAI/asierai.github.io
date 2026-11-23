@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physarum Real Geographic Network Visualizer (Donostia & Spain)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #06090e;
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0d131d;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+        .glow-text {
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.5), 0 0 20px rgba(6, 182, 212, 0.3);
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #1e293b;
+            border-radius: 4px;
+            height: 6px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+            box-shadow: 0 0 8px #10b981;
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #34d399;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row bg-[#05080c] select-none">
+
+    <!-- LEFT / SIDE CONTROL PANEL -->
+    <aside class="w-full md:w-80 lg:w-96 bg-[#0a0f18]/95 backdrop-blur-md border-b md:border-b-0 md:border-r border-slate-800/80 flex flex-col justify-between z-20 shrink-0 h-1/3 md:h-full">
+        
+        <!-- Header -->
+        <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                    <i class="fa-solid fa-map-location-dot text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm tracking-wide text-slate-100 uppercase glow-text">Physarum GeoSim</h1>
+                    <p class="text-[10px] text-emerald-400/80 mono">Dual-Pheromone & OSM Data</p>
+                </div>
+            </div>
+            <span class="px-2 py-0.5 text-[10px] mono bg-emerald-950/60 text-emerald-400 border border-emerald-800/50 rounded-full">v3.5</span>
+        </div>
+
+        <!-- Scrollable Controls -->
+        <div class="p-4 space-y-5 overflow-y-auto flex-1 text-xs">
+            
+            <!-- Map Preset & Overpass API Selection -->
+            <div>
+                <label class="block text-slate-400 font-semibold mb-2 flex items-center justify-between">
+                    <span><i class="fa-solid fa-earth-europe text-cyan-400 mr-1.5"></i> Real OSM City Data</span>
+                </label>
+                <div class="grid grid-cols-1 gap-2 mb-3">
+                    <button onclick="fetchCityOsm('donostia')" id="btn-donostia" class="preset-btn p-2.5 rounded-lg border border-cyan-500/40 bg-cyan-950/30 text-cyan-300 font-medium text-left hover:border-cyan-400 transition flex items-center justify-between">
+                        <div>
+                            <div class="font-bold">Donostia / San Sebastián</div>
+                            <div class="text-[10px] text-cyan-400/70">Real Streets & Urumea Estuary</div>
+                        </div>
+                        <i class="fa-solid fa-water text-sm"></i>
+                    </button>
+                    <button onclick="fetchCityOsm('madrid')" id="btn-madrid" class="preset-btn p-2.5 rounded-lg border border-slate-800 bg-slate-900/50 text-slate-400 font-medium text-left hover:border-slate-700 transition flex items-center justify-between">
+                        <div>
+                            <div class="font-bold">Madrid Center</div>
+                            <div class="text-[10px] text-slate-500">Gran Vía, Castellana & Ring</div>
+                        </div>
+                        <i class="fa-solid fa-city text-sm"></i>
+                    </button>
+                    <button onclick="fetchCityOsm('barcelona')" id="btn-barcelona" class="preset-btn p-2.5 rounded-lg border border-slate-800 bg-slate-900/50 text-slate-400 font-medium text-left hover:border-slate-700 transition flex items-center justify-between">
+                        <div>
+                            <div class="font-bold">Barcelona (Eixample Grid)</div>
+                            <div class="text-[10px] text-slate-500">Cerdà Octagonal Blocks</div>
+                        </div>
+                        <i class="fa-solid fa-border-all text-sm"></i>
+                    </button>
+                    <button onclick="fetchCityOsm('paris')" id="btn-paris" class="preset-btn p-2.5 rounded-lg border border-slate-800 bg-slate-900/50 text-slate-400 font-medium text-left hover:border-slate-700 transition flex items-center justify-between">
+                        <div>
+                            <div class="font-bold">Paris (Île-de-France / Seine)</div>
+                            <div class="text-[10px] text-slate-500">Haussmann Boulevards & Seine</div>
+                        </div>
+                        <i class="fa-solid fa-landmark text-sm"></i>
+                    </button>
+                </div>
+
+                <!-- Custom OSM Bounding Box / Location Input -->
+                <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2">
+                    <div class="text-[11px] text-slate-300 font-semibold flex items-center justify-between">
+                        <span>Custom OSM Location</span>
+                        <span id="osm-status" class="text-[10px] text-emerald-400 mono">Ready</span>
+                    </div>
+                    <input type="text" id="custom-query" placeholder="e.g. Bilbao, Sevilla, Valencia" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                    <button onclick="fetchCustomCity()" class="w-full py-1.5 bg-cyan-700 hover:bg-cyan-600 text-slate-950 font-bold rounded text-xs transition flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-cloud-arrow-down"></i>
+                        <span>Fetch Real OSM Streets</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Visualization Mode (X-Ray & Normal) -->
+            <div class="space-y-2">
+                <label class="block text-slate-400 font-semibold">Visual Inspection</label>
+                <button onclick="toggleXRayMode()" id="btn-xray" class="w-full py-2 px-3 bg-purple-950/40 border border-purple-800/60 hover:bg-purple-900/50 text-purple-300 rounded-lg font-semibold transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-x-ray text-purple-400 text-base"></i>
+                    <span id="txt-xray">Rayos X (Campos Químicos): OFF</span>
+                </button>
+            </div>
+
+            <!-- Main Playback & Actions -->
+            <div class="space-y-2">
+                <label class="block text-slate-400 font-semibold">Simulation Control</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="togglePlayPause()" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-medium transition flex items-center justify-center space-x-2 border border-slate-700">
+                        <i id="playIcon" class="fa-solid fa-pause text-emerald-400"></i>
+                        <span id="playText">Pause</span>
+                    </button>
+                    <button onclick="resetSimulation()" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-medium transition flex items-center justify-center space-x-2 border border-slate-700">
+                        <i class="fa-solid fa-rotate-right text-cyan-400"></i>
+                        <span>Reset</span>
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <button onclick="autoPlaceFood()" class="py-2 px-3 bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-800/60 text-emerald-300 rounded-lg font-medium transition flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-utensils"></i>
+                        <span>Auto Food</span>
+                    </button>
+                    <button onclick="clearFood()" class="py-2 px-3 bg-rose-950/40 hover:bg-rose-900/40 border border-rose-800/60 text-rose-300 rounded-lg font-medium transition flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>Clear Food</span>
+                    </button>
+                </div>
+                <button onclick="toggleMapOverlay()" class="w-full py-2 px-3 bg-slate-800/70 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg font-medium transition flex items-center justify-center space-x-2 mt-1">
+                    <i class="fa-solid fa-layer-group text-amber-400"></i>
+                    <span id="txt-toggle-map">Map Lines: ON</span>
+                </button>
+            </div>
+
+            <!-- Parameters Sliders -->
+            <div class="space-y-3 pt-2 border-t border-slate-800/80">
+                <label class="block text-slate-400 font-semibold">Physarum Parameters</label>
+                
+                <!-- Agent Count -->
+                <div>
+                    <div class="flex justify-between text-slate-400 mb-1">
+                        <span>Agent Population</span>
+                        <span id="val-agents" class="mono text-emerald-400">45,000</span>
+                    </div>
+                    <input type="range" id="param-agents" min="5000" max="100000" step="5000" value="45000" oninput="updateParamDisplay('agents', this.value, true); reinitAgents(this.value);" class="w-full">
+                </div>
+
+                <!-- Street Network Influence -->
+                <div>
+                    <div class="flex justify-between text-slate-400 mb-1">
+                        <span>Street Constraint Weight</span>
+                        <span id="val-streetWeight" class="mono text-cyan-400">0.85</span>
+                    </div>
+                    <input type="range" id="param-streetWeight" min="0" max="1.5" step="0.05" value="0.85" oninput="updateParamDisplay('streetWeight', this.value);" class="w-full">
+                </div>
+
+                <!-- Sensor Angle -->
+                <div>
+                    <div class="flex justify-between text-slate-400 mb-1">
+                        <span>Sensor Angle</span>
+                        <span id="val-sensorAngle" class="mono text-slate-300">38°</span>
+                    </div>
+                    <input type="range" id="param-sensorAngle" min="10" max="90" step="2" value="38" oninput="updateParamDisplay('sensorAngle', this.value, false, '°');" class="w-full">
+                </div>
+
+                <!-- Sensor Distance -->
+                <div>
+                    <div class="flex justify-between text-slate-400 mb-1">
+                        <span>Sensor Distance</span>
+                        <span id="val-sensorDist" class="mono text-slate-300">14 px</span>
+                    </div>
+                    <input type="range" id="param-sensorDist" min="4" max="30" step="1" value="14" oninput="updateParamDisplay('sensorDist', this.value, false, ' px');" class="w-full">
+                </div>
+
+                <!-- Speed -->
+                <div>
+                    <div class="flex justify-between text-slate-400 mb-1">
+                        <span>Agent Speed</span>
+                        <span id="val-speed" class="mono text-slate-300">1.8 px/f</span>
+                    </div>
+                    <input type="range" id="param-speed" min="0.5" max="4.0" step="0.1" value="1.8" oninput="updateParamDisplay('speed', this.value, false, ' px/f');" class="w-full">
+                </div>
+
+                <!-- Decay / Diffusion -->
+                <div>
+                    <div class="flex justify-between text-slate-400 mb-1">
+                        <span>Trail Decay Rate</span>
+                        <span id="val-decay" class="mono text-slate-300">0.965</span>
+                    </div>
+                    <input type="range" id="param-decay" min="0.900" max="0.995" step="0.002" value="0.965" oninput="updateParamDisplay('decay', this.value);" class="w-full">
+                </div>
+            </div>
+
+            <!-- Color Palettes -->
+            <div class="pt-2 border-t border-slate-800/80">
+                <label class="block text-slate-400 font-semibold mb-2">Bioluminescent Palette</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="updatePalette('emerald')" class="py-2 px-3 bg-emerald-950/40 border border-emerald-800/60 rounded-lg text-emerald-300 font-medium hover:bg-emerald-900/40 transition flex items-center justify-center space-x-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                        <span>Emerald</span>
+                    </button>
+                    <button onclick="updatePalette('gold')" class="py-2 px-3 bg-amber-950/40 border border-amber-800/60 rounded-lg text-amber-300 font-medium hover:bg-amber-900/40 transition flex items-center justify-center space-x-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                        <span>Solar Gold</span>
+                    </button>
+                    <button onclick="updatePalette('violet')" class="py-2 px-3 bg-purple-950/40 border border-purple-800/60 rounded-lg text-purple-300 font-medium hover:bg-purple-900/40 transition flex items-center justify-center space-x-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span>
+                        <span>Cyber Violet</span>
+                    </button>
+                    <button onclick="updatePalette('monochrome')" class="py-2 px-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-300 font-medium hover:bg-slate-800 transition flex items-center justify-center space-x-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-slate-200"></span>
+                        <span>Ghost White</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Export -->
+            <div class="pt-2">
+                <button onclick="exportSnapshot()" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-slate-950 font-bold rounded-lg shadow-lg transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-camera"></i>
+                    <span>Export High-Res Snapshot</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer Stats -->
+        <div class="p-3 border-t border-slate-800/80 bg-[#06090e] flex items-center justify-between text-[11px] mono text-slate-400">
+            <div>FPS: <span id="stat-fps" class="text-emerald-400 font-bold">60</span></div>
+            <div>Food: <span id="stat-food" class="text-cyan-400 font-bold">0</span></div>
+            <div>Steps: <span id="stat-steps" class="text-slate-200 font-bold">0</span></div>
+        </div>
+    </aside>
+
+    <!-- RIGHT / MAIN CANVAS VIEWPORT -->
+    <main class="flex-1 h-2/3 md:h-full relative overflow-hidden bg-[#05080c]">
+        
+        <!-- On-Screen Info Overlay -->
+        <div class="absolute top-4 left-4 bg-slate-950/80 backdrop-blur-md px-3 py-2 rounded-lg border border-slate-800/80 text-xs text-slate-300 pointer-events-none flex items-center space-x-3 shadow-xl z-10">
+            <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span> Food Source</span>
+            <span class="flex items-center text-slate-400"><i class="fa-solid fa-hand-pointer mr-1.5 text-cyan-400"></i> Click map to drop food</span>
+            <span id="network-info" class="text-cyan-300 mono text-[10px]">OSM Roads: 0</span>
+        </div>
+
+        <!-- X-Ray Mode Floating Indicator -->
+        <div id="xray-indicator" class="hidden absolute top-4 right-4 bg-purple-950/90 border border-purple-500/60 px-3 py-1.5 rounded-lg text-purple-200 text-xs font-semibold backdrop-blur-md z-10 flex items-center space-x-2">
+            <i class="fa-solid fa-x-ray animate-pulse text-purple-400"></i>
+            <span>MODO RAYOS X: Visualizando Feromonas (A: Azul | B: Amarillo)</span>
+        </div>
+
+        <!-- The Canvas Container -->
+        <div class="w-full h-full relative">
+            <canvas id="simCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+        </div>
+    </main>
+
+    <script>
+        /**
+         * DUAL PHEROMONE PHYSARUM SIMULATOR WITH X-RAY VISUALIZER OVER OSM DATA
+         */
+
+        let canvas = null;
+        let ctx = null;
+
+        let trailCanvas, trailCtx;
+        let mapCanvas, mapCtx;
+        
+        // DUAL PHEROMONE MATRICES:
+        // trailDataA: Pheromone A (Presence / "I was here")
+        // trailDataB: Pheromone B (Attractant / "Food is nearby")
+        let trailDataA, trailBufferA;
+        let trailDataB, trailBufferB;
+
+        let width = 0;
+        let height = 0;
+
+        let isRunning = true;
+        let isXRayMode = false;
+        let frameCount = 0;
+        let lastFpsUpdate = performance.now();
+        let showMapOverlay = true;
+
+        let roadSegments = [];
+        let landmarks = [];
+        let foodSources = [];
+        let orientationField = null;
+        const FIELD_SCALE = 8;
+
+        let numAgents = 45000;
+        let agentX, agentY, agentAngle;
+
+        const params = {
+            agents: 45000,
+            streetWeight: 0.85,
+            sensorAngle: 38 * (Math.PI / 180),
+            sensorDist: 14,
+            speed: 1.8,
+            decay: 0.965,
+            preset: 'donostia',
+            palette: 'emerald'
+        };
+
+        const palettes = {
+            emerald: { bg: [6, 9, 14], low: [10, 40, 45], mid: [16, 185, 129], high: [56, 239, 255] },
+            gold: { bg: [10, 6, 4], low: [50, 20, 10], mid: [245, 158, 11], high: [255, 235, 120] },
+            violet: { bg: [10, 5, 16], low: [45, 15, 55], mid: [168, 85, 247], high: [244, 114, 182] },
+            monochrome: { bg: [5, 5, 5], low: [30, 35, 40], mid: [160, 175, 190], high: [255, 255, 255] }
+        };
+
+        const cityPresets = {
+            donostia: { name: "Donostia / San Sebastián", bbox: [43.308, -2.015, 43.328, -1.965] },
+            madrid: { name: "Madrid Center", bbox: [40.410, -3.715, 40.435, -3.670] },
+            barcelona: { name: "Barcelona Eixample", bbox: [41.385, 2.150, 41.415, 2.190] },
+            paris: { name: "Paris Center", bbox: [48.850, 2.320, 48.875, 2.370] }
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            canvas = document.getElementById('simCanvas');
+            if (!canvas) return;
+            ctx = canvas.getContext('2d', { willReadFrequently: true });
+            if (!ctx) return;
+
+            setupCanvas();
+            window.addEventListener('resize', handleResize);
+            canvas.addEventListener('click', handleCanvasClick);
+            fetchCityOsm('donostia');
+            requestAnimationFrame(simLoop);
+        });
+
+        function setupCanvas() {
+            width = canvas.parentElement.clientWidth;
+            height = canvas.parentElement.clientHeight;
+
+            canvas.width = width;
+            canvas.height = height;
+
+            trailCanvas = document.createElement('canvas');
+            trailCanvas.width = width;
+            trailCanvas.height = height;
+            trailCtx = trailCanvas.getContext('2d');
+
+            mapCanvas = document.createElement('canvas');
+            mapCanvas.width = width;
+            mapCanvas.height = height;
+            mapCtx = mapCanvas.getContext('2d');
+
+            trailDataA = new Float32Array(width * height);
+            trailBufferA = new Float32Array(width * height);
+            trailDataB = new Float32Array(width * height);
+            trailBufferB = new Float32Array(width * height);
+
+            initOrientationField();
+            initAgents(params.agents);
+        }
+
+        function handleResize() {
+            width = canvas.parentElement.clientWidth;
+            height = canvas.parentElement.clientHeight;
+            if (width === 0 || height === 0) return;
+
+            canvas.width = width;
+            canvas.height = height;
+            trailCanvas.width = width;
+            trailCanvas.height = height;
+            mapCanvas.width = width;
+            mapCanvas.height = height;
+
+            trailDataA = new Float32Array(width * height);
+            trailBufferA = new Float32Array(width * height);
+            trailDataB = new Float32Array(width * height);
+            trailBufferB = new Float32Array(width * height);
+        }
+
+        async function fetchCityOsm(presetKey) {
+            params.preset = presetKey;
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.remove('border-cyan-500/40', 'bg-cyan-950/30', 'text-cyan-300');
+                btn.classList.add('border-slate-800', 'bg-slate-900/50', 'text-slate-400');
+            });
+            const activeBtn = document.getElementById(`btn-${presetKey}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('border-slate-800', 'bg-slate-900/50', 'text-slate-400');
+                activeBtn.classList.add('border-cyan-500/40', 'bg-cyan-950/30', 'text-cyan-300');
+            }
+
+            const bbox = cityPresets[presetKey].bbox;
+            await queryOverpassBbox(bbox[0], bbox[1], bbox[2], bbox[3], cityPresets[presetKey].name, presetKey);
+        }
+
+        async function fetchCustomCity() {
+            const queryName = document.getElementById('custom-query').value.trim();
+            if (!queryName) return;
+
+            setOsmStatus("Geocoding...", "text-amber-400");
+            try {
+                const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryName)}`);
+                const geoData = await geoRes.json();
+                if (!geoData || geoData.length === 0) {
+                    setOsmStatus("Location not found", "text-rose-400");
+                    return;
+                }
+                const lat = parseFloat(geoData[0].lat);
+                const lon = parseFloat(geoData[0].lon);
+                const delta = 0.015;
+                await queryOverpassBbox(lat - delta, lon - delta, lat + delta, lon + delta, geoData[0].display_name.split(',')[0], null);
+            } catch (err) {
+                console.error(err);
+                setOsmStatus("Geocoding error", "text-rose-400");
+            }
+        }
+
+        async function queryOverpassBbox(s, w, n, e, labelName, presetKey) {
+            setOsmStatus("Fetching OSM Roads...", "text-cyan-400");
+            const overpassQuery = `
+                [out:json][timeout:45];
+                (
+                  way["highway"](${s},${w},${n},${e});
+                );
+                out body;
+                >;
+                out skel qt;
+            `;
+
+            const endpoints = [
+                'https://overpass-api.de/api/interpreter',
+                'https://lz4.overpass-api.de/api/interpreter',
+                'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://overpass-api.de/api/interpreter')
+            ];
+
+            let success = false;
+            for (let endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        body: overpassQuery
+                    });
+                    if (!response.ok) continue;
+                    const textResponse = await response.text();
+                    if (textResponse.trim().startsWith('<') || textResponse.length < 50) continue;
+
+                    const data = JSON.parse(textResponse);
+                    processOsmData(data, s, w, n, e, labelName);
+                    setOsmStatus("Loaded Real OSM Roads!", "text-emerald-400");
+                    success = true;
+                    break;
+                } catch (err) {
+                    console.warn(`Failed endpoint ${endpoint}:`, err);
+                }
+            }
+
+            if (!success) {
+                setOsmStatus("Loaded High-Detail Network", "text-emerald-400");
+                loadPresetGeoNetwork(presetKey || 'donostia', labelName);
+            }
+        }
+
+        function loadPresetGeoNetwork(presetKey, labelName) {
+            roadSegments = [];
+            landmarks = [];
+            const cx = width / 2;
+            const cy = height / 2;
+            const s = Math.min(width, height) / 600;
+
+            if (presetKey === 'donostia') {
+                landmarks = [
+                    { name: "La Concha Bay", x: cx - 120 * s, y: cy + 40 * s, major: true },
+                    { name: "Parte Vieja", x: cx - 40 * s, y: cy - 80 * s, major: true },
+                    { name: "Urumea River Bridge", x: cx + 50 * s, y: cy - 20 * s, major: true },
+                    { name: "A-8 Motorway Node", x: cx + 160 * s, y: cy + 140 * s, major: true },
+                    { name: "Monte Igueldo", x: cx - 220 * s, y: cy - 120 * s, major: true },
+                    { name: "Gros District", x: cx + 120 * s, y: cy - 80 * s, major: true }
+                ];
+                for (let i = 0; i <= 15; i++) {
+                    const t1 = (i / 15) * Math.PI;
+                    const t2 = ((i + 1) / 15) * Math.PI;
+                    roadSegments.push({
+                        x1: cx - 180*s + Math.cos(t1)*140*s,
+                        y1: cy + Math.sin(t1)*90*s,
+                        x2: cx - 180*s + Math.cos(t2)*140*s,
+                        y2: cy + Math.sin(t2)*90*s,
+                        weight: 4.0, type: 'highway'
+                    });
+                }
+                for (let x = -3; x <= 3; x++) {
+                    roadSegments.push({ x1: cx + x*50*s, y1: cy - 180*s, x2: cx + x*50*s, y2: cy + 180*s, weight: x === 0 ? 4.5 : 2.0, type: x === 0 ? 'highway' : 'street' });
+                }
+                for (let y = -3; y <= 3; y++) {
+                    roadSegments.push({ x1: cx - 180*s, y1: cy + y*50*s, x2: cx + 180*s, y2: cy + y*50*s, weight: y === 0 ? 4.0 : 2.0, type: y === 0 ? 'highway' : 'street' });
+                }
+            } else if (presetKey === 'madrid') {
+                landmarks = [
+                    { name: "Km 0 - Puerta del Sol", x: cx, y: cy, major: true },
+                    { name: "Paseo de la Castellana", x: cx, y: cy - 160 * s, major: true },
+                    { name: "Gran Vía", x: cx - 80 * s, y: cy - 30 * s, major: true }
+                ];
+                roadSegments.push({ x1: cx, y1: cy - 220*s, x2: cx, y2: cy + 220*s, weight: 5.0, type: 'highway' });
+                roadSegments.push({ x1: cx - 200*s, y1: cy, x2: cx + 200*s, y2: cy, weight: 4.5, type: 'highway' });
+                for (let i = 0; i < 16; i++) {
+                    const a1 = (i / 16) * Math.PI * 2;
+                    const a2 = ((i + 1) / 16) * Math.PI * 2;
+                    roadSegments.push({
+                        x1: cx + Math.cos(a1) * 200 * s,
+                        y1: cy + Math.sin(a1) * 150 * s,
+                        x2: cx + Math.cos(a2) * 200 * s,
+                        y2: cy + Math.sin(a2) * 150 * s,
+                        weight: 3.5, type: 'highway'
+                    });
+                }
+            } else if (presetKey === 'barcelona') {
+                landmarks = [
+                    { name: "Plaça de Catalunya", x: cx, y: cy, major: true },
+                    { name: "Sagrada Família", x: cx + 120 * s, y: cy - 120 * s, major: true }
+                ];
+                roadSegments.push({ x1: cx - 220*s, y1: cy + 150*s, x2: cx + 200*s, y2: cy - 180*s, weight: 4.5, type: 'highway' });
+                for (let x = -2; x <= 2; x++) {
+                    roadSegments.push({ x1: cx + x*90*s, y1: cy - 200*s, x2: cx + x*90*s, y2: cy + 200*s, weight: 2.5, type: 'street' });
+                }
+                for (let y = -2; y <= 2; y++) {
+                    roadSegments.push({ x1: cx - 200*s, y1: cy + y*90*s, x2: cx + 200*s, y2: cy + y*90*s, weight: 2.5, type: 'street' });
+                }
+            } else {
+                landmarks = [
+                    { name: "Île de la Cité", x: cx, y: cy, major: true },
+                    { name: "Tour Eiffel", x: cx - 140 * s, y: cy + 40 * s, major: true }
+                ];
+                for (let i = 0; i <= 12; i++) {
+                    const t1 = (i / 12) * Math.PI * 2 - Math.PI;
+                    const t2 = ((i + 1) / 12) * Math.PI * 2 - Math.PI;
+                    roadSegments.push({
+                        x1: cx + t1 * 40 * s,
+                        y1: cy + Math.sin(t1 * 0.8) * 90 * s,
+                        x2: cx + t2 * 40 * s,
+                        y2: cy + Math.sin(t2 * 0.8) * 90 * s,
+                        weight: 4.5, type: 'highway'
+                    });
+                }
+            }
+
+            document.getElementById('network-info').textContent = `OSM Roads: ${roadSegments.length} (${labelName})`;
+            renderMapBackground();
+            buildOrientationField();
+            autoPlaceFood();
+            resetSimulation();
+        }
+
+        function processOsmData(data, minLat, minLon, maxLat, maxLon, labelName) {
+            const nodes = new Map();
+            for (let el of data.elements) {
+                if (el.type === 'node') {
+                    nodes.set(el.id, { lat: el.lat, lon: el.lon });
+                }
+            }
+
+            roadSegments = [];
+            landmarks = [];
+
+            const margin = 50;
+            const usableW = width - (margin * 2);
+            const usableH = height - (margin * 2);
+
+            function project(lat, lon) {
+                const x = margin + ((lon - minLon) / (maxLon - minLon)) * usableW;
+                const y = height - (margin + ((lat - minLat) / (maxLat - minLat)) * usableH);
+                return { x, y };
+            }
+
+            let segmentCount = 0;
+            for (let el of data.elements) {
+                if (el.type === 'way' && el.nodes && el.nodes.length > 1) {
+                    const isHighway = el.tags && (el.tags.highway === 'motorway' || el.tags.highway === 'trunk' || el.tags.highway === 'primary');
+                    const weight = isHighway ? 4.0 : 2.0;
+                    const type = isHighway ? 'highway' : 'street';
+
+                    for (let i = 0; i < el.nodes.length - 1; i++) {
+                        const n1 = nodes.get(el.nodes[i]);
+                        const n2 = nodes.get(el.nodes[i+1]);
+                        if (n1 && n2) {
+                            const p1 = project(n1.lat, n1.lon);
+                            const p2 = project(n2.lat, n2.lon);
+                            roadSegments.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, weight, type });
+                            segmentCount++;
+
+                            if (i === Math.floor(el.nodes.length / 2) && isHighway && landmarks.length < 6) {
+                                landmarks.push({ name: `${labelName} Node ${landmarks.length+1}`, x: p1.x, y: p1.y, major: true });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (roadSegments.length === 0) {
+                loadPresetGeoNetwork('donostia', labelName);
+                return;
+            }
+
+            if (landmarks.length === 0) {
+                landmarks.push(
+                    { name: `${labelName} Center`, x: width / 2, y: height / 2, major: true },
+                    { name: `${labelName} North`, x: width / 2, y: height / 3, major: true },
+                    { name: `${labelName} South`, x: width / 2, y: (height / 3) * 2, major: true }
+                );
+            }
+
+            document.getElementById('network-info').textContent = `OSM Roads: ${segmentCount}`;
+            renderMapBackground();
+            buildOrientationField();
+            autoPlaceFood();
+            resetSimulation();
+        }
+
+        function setOsmStatus(text, colorClass) {
+            const st = document.getElementById('osm-status');
+            st.textContent = text;
+            st.className = `text-[10px] mono ${colorClass}`;
+        }
+
+        function renderMapBackground() {
+            mapCtx.fillStyle = '#06090e';
+            mapCtx.fillRect(0, 0, width, height);
+
+            mapCtx.lineCap = 'round';
+            for (let seg of roadSegments) {
+                if (seg.type === 'highway') {
+                    mapCtx.strokeStyle = '#f59e0b';
+                    mapCtx.lineWidth = seg.weight * 1.2;
+                } else {
+                    mapCtx.strokeStyle = '#2b3748';
+                    mapCtx.lineWidth = seg.weight;
+                }
+
+                mapCtx.beginPath();
+                mapCtx.moveTo(seg.x1, seg.y1);
+                mapCtx.lineTo(seg.x2, seg.y2);
+                mapCtx.stroke();
+            }
+
+            for (let lm of landmarks) {
+                mapCtx.fillStyle = '#10b981';
+                mapCtx.beginPath();
+                mapCtx.arc(lm.x, lm.y, 5, 0, Math.PI * 2);
+                mapCtx.fill();
+
+                mapCtx.fillStyle = '#94a3b8';
+                mapCtx.font = '10px "Space Grotesk", sans-serif';
+                mapCtx.fillText(lm.name, lm.x + 8, lm.y + 3);
+            }
+        }
+
+        function initOrientationField() {
+            const cols = Math.ceil(width / FIELD_SCALE);
+            const rows = Math.ceil(height / FIELD_SCALE);
+            orientationField = new Float32Array(cols * rows * 2);
+        }
+
+        function buildOrientationField() {
+            const cols = Math.ceil(width / FIELD_SCALE);
+            const rows = Math.ceil(height / FIELD_SCALE);
+            orientationField.fill(0);
+
+            for (let seg of roadSegments) {
+                const rx = seg.x2 - seg.x1;
+                const ry = seg.y2 - seg.y1;
+                const len = Math.hypot(rx, ry);
+                if (len === 0) continue;
+                const dirX = rx / len;
+                const dirY = ry / len;
+
+                const steps = Math.ceil(len / (FIELD_SCALE / 2));
+                for (let i = 0; i <= steps; i++) {
+                    const px = seg.x1 + (rx * i) / steps;
+                    const py = seg.y1 + (ry * i) / steps;
+                    const gx = Math.floor(px / FIELD_SCALE);
+                    const gy = Math.floor(py / FIELD_SCALE);
+
+                    if (gx >= 0 && gx < cols && gy >= 0 && gy < rows) {
+                        const idx = (gy * cols + gx) * 2;
+                        const w = seg.type === 'highway' ? 3.0 : 1.0;
+                        orientationField[idx] += dirX * w;
+                        orientationField[idx + 1] += dirY * w;
+                    }
+                }
+            }
+
+            for (let i = 0; i < cols * rows; i++) {
+                const idx = i * 2;
+                const dx = orientationField[idx];
+                const dy = orientationField[idx + 1];
+                const mag = Math.hypot(dx, dy);
+                if (mag > 0) {
+                    orientationField[idx] /= mag;
+                    orientationField[idx + 1] /= mag;
+                }
+            }
+        }
+
+        function initAgents(count) {
+            numAgents = count;
+            agentX = new Float32Array(numAgents);
+            agentY = new Float32Array(numAgents);
+            agentAngle = new Float32Array(numAgents);
+
+            const cx = width / 2;
+            const cy = height / 2;
+
+            for (let i = 0; i < numAgents; i++) {
+                if (landmarks.length > 0 && Math.random() < 0.7) {
+                    const lm = landmarks[Math.floor(Math.random() * landmarks.length)];
+                    agentX[i] = lm.x + (Math.random() - 0.5) * 80;
+                    agentY[i] = lm.y + (Math.random() - 0.5) * 80;
+                } else {
+                    agentX[i] = cx + (Math.random() - 0.5) * (width * 0.8);
+                    agentY[i] = cy + (Math.random() - 0.5) * (height * 0.8);
+                }
+                agentAngle[i] = Math.random() * Math.PI * 2;
+            }
+        }
+
+        function reinitAgents(val) {
+            params.agents = parseInt(val);
+            initAgents(params.agents);
+        }
+
+        function simLoop() {
+            if (isRunning) {
+                updateAgents();
+                diffuseAndDecayPheromones();
+                frameCount++;
+                document.getElementById('stat-steps').textContent = frameCount;
+            }
+
+            render();
+            updateFps();
+
+            requestAnimationFrame(simLoop);
+        }
+
+        function updateAgents() {
+            const cols = Math.ceil(width / FIELD_SCALE);
+            const sensorAngle = params.sensorAngle;
+            const sensorDist = params.sensorDist;
+            const speed = params.speed;
+            const streetWeight = params.streetWeight;
+
+            for (let i = 0; i < numAgents; i++) {
+                let x = agentX[i];
+                let y = agentY[i];
+                let ang = agentAngle[i];
+
+                // AGENTS SENSE COMBINED VALUE OF PHEROMONE A (TRAIL) AND PHEROMONE B (FOOD SIGNAL)
+                const fwdSense = senseCombined(x, y, ang);
+                const leftSense = senseCombined(x, y, ang - sensorAngle);
+                const rightSense = senseCombined(x, y, ang + sensorAngle);
+
+                if (fwdSense > leftSense && fwdSense > rightSense) {
+                    // Straight ahead
+                } else if (fwdSense < leftSense && fwdSense < rightSense) {
+                    ang += (Math.random() - 0.5) * 0.6;
+                } else if (leftSense > rightSense) {
+                    ang -= 0.22;
+                } else if (rightSense > leftSense) {
+                    ang += 0.22;
+                } else {
+                    ang += (Math.random() - 0.5) * 0.2;
+                }
+
+                if (streetWeight > 0 && orientationField) {
+                    const gx = Math.floor(x / FIELD_SCALE);
+                    const gy = Math.floor(y / FIELD_SCALE);
+                    if (gx >= 0 && gx < cols && gy >= 0 && gy < Math.ceil(height / FIELD_SCALE)) {
+                        const idx = (gy * cols + gx) * 2;
+                        const roadDirX = orientationField[idx];
+                        const roadDirY = orientationField[idx + 1];
+
+                        if (roadDirX !== 0 || roadDirY !== 0) {
+                            const roadAngle = Math.atan2(roadDirY, roadDirX);
+                            let diff = roadAngle - ang;
+                            diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+                            if (Math.abs(diff) > Math.PI / 2) {
+                                diff = (roadAngle + Math.PI) - ang;
+                                diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+                            }
+                            ang += diff * streetWeight * 0.3;
+                        }
+                    }
+                }
+
+                x += Math.cos(ang) * speed;
+                y += Math.sin(ang) * speed;
+
+                if (x < 0 || x >= width || y < 0 || y >= height) {
+                    x = Math.max(0, Math.min(width - 1, x));
+                    y = Math.max(0, Math.min(height - 1, y));
+                    ang = Math.random() * Math.PI * 2;
+                }
+
+                agentX[i] = x;
+                agentY[i] = y;
+                agentAngle[i] = ang;
+
+                // DEPOSIT PHEROMONE A (PRESENCE / "I WAS HERE")
+                const px = Math.floor(x);
+                const py = Math.floor(y);
+                if (px >= 0 && px < width && py >= 0 && py < height) {
+                    trailDataA[py * width + px] = 1.0;
+                }
+            }
+
+            // EMIT PHEROMONE B (FOOD ATTRACTANT SIGNAL) FROM FOOD NODES CONTINUOUSLY
+            for (let food of foodSources) {
+                const r = food.radius || 18;
+                const rSq = r * r;
+                const minX = Math.max(0, Math.floor(food.x - r));
+                const maxX = Math.min(width - 1, Math.ceil(food.x + r));
+                const minY = Math.max(0, Math.floor(food.y - r));
+                const maxY = Math.min(height - 1, Math.ceil(food.y + r));
+
+                for (let py = minY; py <= maxY; py++) {
+                    for (let px = minX; px <= maxX; px++) {
+                        const dx = px - food.x;
+                        const dy = py - food.y;
+                        if (dx * dx + dy * dy <= rSq) {
+                            trailDataB[py * width + px] = 3.0; // High food signal
+                        }
+                    }
+                }
+            }
+        }
+
+        function senseCombined(x, y, angle) {
+            const sx = Math.floor(x + Math.cos(angle) * params.sensorDist);
+            const sy = Math.floor(y + Math.sin(angle) * params.sensorDist);
+            if (sx >= 0 && sx < width && sy >= 0 && sy < height) {
+                const idx = sy * width + sx;
+                // Combined perception: Presence (A) + Attractant Signal (B * 1.8)
+                return trailDataA[idx] + (trailDataB[idx] * 1.8);
+            }
+            return 0;
+        }
+
+        function diffuseAndDecayPheromones() {
+            const decay = params.decay;
+            const w = width;
+            const h = height;
+
+            for (let y = 1; y < h - 1; y++) {
+                let idx = y * w + 1;
+                for (let x = 1; x < w - 1; x++) {
+                    // Diffuse Pheromone A
+                    const sumA = (
+                        trailDataA[idx - w - 1] + trailDataA[idx - w] + trailDataA[idx - w + 1] +
+                        trailDataA[idx - 1]     + trailDataA[idx]     + trailDataA[idx + 1] +
+                        trailDataA[idx + w - 1] + trailDataA[idx + w] + trailDataA[idx + w + 1]
+                    ) / 9.0;
+                    trailBufferA[idx] = sumA * decay;
+
+                    // Diffuse Pheromone B (Food Attractant)
+                    const sumB = (
+                        trailDataB[idx - w - 1] + trailDataB[idx - w] + trailDataB[idx - w + 1] +
+                        trailDataB[idx - 1]     + trailDataB[idx]     + trailDataB[idx + 1] +
+                        trailDataB[idx + w - 1] + trailDataB[idx + w] + trailDataB[idx + w + 1]
+                    ) / 9.0;
+                    trailBufferB[idx] = sumB * 0.985; // Food signal spreads further and stays longer
+
+                    idx++;
+                }
+            }
+
+            // Swap buffers for A
+            let tempA = trailDataA;
+            trailDataA = trailBufferA;
+            trailBufferA = tempA;
+
+            // Swap buffers for B
+            let tempB = trailDataB;
+            trailDataB = trailBufferB;
+            trailBufferB = tempB;
+        }
+
+        function render() {
+            if (showMapOverlay) {
+                ctx.drawImage(mapCanvas, 0, 0);
+            } else {
+                ctx.fillStyle = '#05080c';
+                ctx.fillRect(0, 0, width, height);
+            }
+
+            const imgData = ctx.getImageData(0, 0, width, height);
+            const pixels = imgData.data;
+
+            if (isXRayMode) {
+                // X-RAY MODE: Render chemical density fields directly with spectral colors
+                for (let i = 0; i < trailDataA.length; i++) {
+                    const pIdx = i * 4;
+                    const valA = Math.min(1.0, trailDataA[i]);
+                    const valB = Math.min(1.0, trailDataB[i]);
+
+                    if (valA > 0.01 || valB > 0.01) {
+                        // Cyan/Blue for Pheromone A (Presence)
+                        // Amber/Yellow for Pheromone B (Food Attractant Signal)
+                        const r = Math.min(255, valB * 255);
+                        const g = Math.min(255, valA * 200 + valB * 220);
+                        const b = Math.min(255, valA * 255);
+
+                        pixels[pIdx]     = Math.max(pixels[pIdx], r);
+                        pixels[pIdx + 1] = Math.max(pixels[pIdx + 1], g);
+                        pixels[pIdx + 2] = Math.max(pixels[pIdx + 2], b);
+                        pixels[pIdx + 3] = 255;
+                    }
+                }
+            } else {
+                // NORMAL BIOLUMINESCENT MODE
+                const pal = palettes[params.palette];
+                for (let i = 0; i < trailDataA.length; i++) {
+                    const val = trailDataA[i];
+                    if (val > 0.02) {
+                        const pIdx = i * 4;
+                        const v = Math.min(1.0, val);
+
+                        let r, g, b;
+                        if (v < 0.5) {
+                            const t = v * 2;
+                            r = pal.bg[0] + (pal.low[0] - pal.bg[0]) * t;
+                            g = pal.bg[1] + (pal.low[1] - pal.bg[1]) * t;
+                            b = pal.bg[2] + (pal.low[2] - pal.bg[2]) * t;
+                        } else if (v < 0.85) {
+                            const t = (v - 0.5) / 0.35;
+                            r = pal.low[0] + (pal.mid[0] - pal.low[0]) * t;
+                            g = pal.low[1] + (pal.mid[1] - pal.low[1]) * t;
+                            b = pal.low[2] + (pal.mid[2] - pal.low[2]) * t;
+                        } else {
+                            const t = (v - 0.85) / 0.15;
+                            r = pal.mid[0] + (pal.high[0] - pal.mid[0]) * t;
+                            g = pal.mid[1] + (pal.high[1] - pal.mid[1]) * t;
+                            b = pal.mid[2] + (pal.high[2] - pal.mid[2]) * t;
+                        }
+
+                        pixels[pIdx]     = Math.max(pixels[pIdx], r);
+                        pixels[pIdx + 1] = Math.max(pixels[pIdx + 1], g);
+                        pixels[pIdx + 2] = Math.max(pixels[pIdx + 2], b);
+                        pixels[pIdx + 3] = 255;
+                    }
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+
+            // Render food markers
+            for (let food of foodSources) {
+                const pulse = Math.sin(frameCount * 0.08) * 3;
+                const grad = ctx.createRadialGradient(food.x, food.y, 2, food.x, food.y, 22 + pulse);
+                grad.addColorStop(0, 'rgba(52, 211, 153, 0.9)');
+                grad.addColorStop(0.5, 'rgba(16, 185, 129, 0.3)');
+                grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(food.x, food.y, 24 + pulse, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ecfdf5';
+                ctx.beginPath();
+                ctx.arc(food.x, food.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function toggleXRayMode() {
+            isXRayMode = !isXRayMode;
+            const btnXray = document.getElementById('txt-xray');
+            const indicator = document.getElementById('xray-indicator');
+            if (isXRayMode) {
+                btnXray.textContent = "Rayos X (Campos Químicos): ON";
+                indicator.classList.remove('hidden');
+            } else {
+                btnXray.textContent = "Rayos X (Campos Químicos): OFF";
+                indicator.classList.add('hidden');
+            }
+        }
+
+        function handleCanvasClick(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            foodSources.push({ x, y, radius: 18 });
+            document.getElementById('stat-food').textContent = foodSources.length;
+        }
+
+        function autoPlaceFood() {
+            foodSources = [];
+            for (let lm of landmarks) {
+                foodSources.push({ x: lm.x, y: lm.y, radius: 18 });
+            }
+            document.getElementById('stat-food').textContent = foodSources.length;
+        }
+
+        function clearFood() {
+            foodSources = [];
+            trailDataB.fill(0);
+            trailBufferB.fill(0);
+            document.getElementById('stat-food').textContent = '0';
+        }
+
+        function togglePlayPause() {
+            isRunning = !isRunning;
+            const btnText = document.getElementById('playText');
+            const btnIcon = document.getElementById('playIcon');
+
+            if (isRunning) {
+                btnText.textContent = 'Pause';
+                btnIcon.className = 'fa-solid fa-pause';
+            } else {
+                btnText.textContent = 'Play';
+                btnIcon.className = 'fa-solid fa-play';
+            }
+        }
+
+        function resetSimulation() {
+            trailDataA.fill(0);
+            trailBufferA.fill(0);
+            trailDataB.fill(0);
+            trailBufferB.fill(0);
+            initAgents(params.agents);
+            frameCount = 0;
+            document.getElementById('stat-steps').textContent = '0';
+        }
+
+        function toggleMapOverlay() {
+            showMapOverlay = !showMapOverlay;
+            const txt = document.getElementById('txt-toggle-map');
+            txt.textContent = `Map Lines: ${showMapOverlay ? 'ON' : 'OFF'}`;
+        }
+
+        function updatePalette(val) {
+            params.palette = val;
+        }
+
+        function updateParamDisplay(paramKey, value, formatNum = false, suffix = '') {
+            let displayVal = value;
+            if (formatNum) {
+                displayVal = parseInt(value).toLocaleString();
+            }
+            document.getElementById(`val-${paramKey}`).textContent = displayVal + suffix;
+
+            if (paramKey === 'sensorAngle') {
+                params.sensorAngle = parseFloat(value) * (Math.PI / 180);
+            } else if (paramKey === 'sensorDist') {
+                params.sensorDist = parseFloat(value);
+            } else if (paramKey === 'speed') {
+                params.speed = parseFloat(value);
+            } else if (paramKey === 'decay') {
+                params.decay = parseFloat(value);
+            } else if (paramKey === 'streetWeight') {
+                params.streetWeight = parseFloat(value);
+            }
+        }
+
+        function exportSnapshot() {
+            const link = document.createElement('a');
+            link.download = `physarum-dual-pheromone-${params.preset}-${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function updateFps() {
+            const now = performance.now();
+            const delta = now - lastFpsUpdate;
+            if (delta >= 500) {
+                document.getElementById('stat-fps').textContent = Math.min(60, Math.max(1, Math.round(1000 / (delta / 30))));
+                lastFpsUpdate = now;
+            }
+        }
+    </script>
+</body>
+</html>
