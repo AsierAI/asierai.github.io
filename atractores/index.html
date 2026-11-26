@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Retrato de Fase — Sistemas Hamiltonianos en [0, 1]²</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-void: #04050a;
+            --bg-panel: rgba(10, 13, 24, 0.84);
+            --border-subtle: rgba(255, 255, 255, 0.09);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-void);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .font-serif-title {
+            font-family: 'Cormorant Garamond', serif;
+        }
+
+        .font-mono-num {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .glass-panel {
+            background: var(--bg-panel);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+
+        #phaseCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            cursor: crosshair;
+        }
+
+        input[type="range"] {
+            accent-color: #38bdf8;
+        }
+
+        .pill-btn {
+            transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .pill-btn:active {
+            transform: scale(0.96);
+        }
+    </style>
+</head>
+<body class="relative antialiased">
+
+    <canvas id="phaseCanvas"></canvas>
+
+    <!-- Cabecera Flotante -->
+    <header class="fixed top-3 left-3 right-3 z-20 flex items-center justify-between gap-2 pointer-events-none max-w-5xl mx-auto">
+        <div class="glass-panel rounded-2xl px-4 py-2.5 pointer-events-auto flex items-center gap-3">
+            <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_12px_#fbbf24]"></span>
+            <div>
+                <h1 id="mapTitle" class="font-serif-title text-xl sm:text-2xl font-semibold tracking-wide text-amber-50 leading-none">
+                    Mapa Estándar de Chirikov
+                </h1>
+                <p id="mapFormula" class="font-mono-num text-[10px] sm:text-[11px] text-sky-300/90 mt-1">
+                    p' = p + (K/2π)·sin(2πx) ,  x' = x + p'  (mod 1)
+                </p>
+            </div>
+        </div>
+
+        <div class="glass-panel rounded-2xl px-3.5 py-2 pointer-events-auto flex items-center gap-3">
+            <div class="text-right">
+                <span class="block text-[9px] uppercase tracking-widest text-slate-400">Iteración</span>
+                <span id="iterDisplay" class="font-mono-num text-sm sm:text-base text-amber-300">0</span>
+            </div>
+            <div class="h-6 w-[1px] bg-white/10"></div>
+            <div class="text-right">
+                <span class="block text-[9px] uppercase tracking-widest text-slate-400">Órbitas</span>
+                <span id="orbDisplay" class="font-mono-num text-sm sm:text-base text-sky-300">120</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hint flotante sutil -->
+    <div id="touchHint" class="fixed top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-[11px] text-slate-400/80 bg-black/40 px-3 py-1 rounded-full border border-white/5 backdrop-blur-md whitespace-nowrap">
+        Toca o desliza en el toro [0,1]² para inyectar condiciones iniciales
+    </div>
+
+    <!-- Panel Inferior Mobile-Friendly -->
+    <footer class="fixed bottom-3 left-3 right-3 z-20 pointer-events-none max-w-5xl mx-auto">
+        <div class="glass-panel rounded-2xl p-2.5 sm:p-3 pointer-events-auto flex flex-col gap-2.5">
+            
+            <!-- Fila 1: Selector de Sistema + Controles de Flujo -->
+            <div class="flex flex-wrap items-center gap-2">
+                <select id="mapSelect" aria-label="Sistema dinámico" class="flex-1 min-w-[175px] min-h-[42px] px-3 rounded-xl text-xs sm:text-sm bg-black/60 text-amber-100 border border-white/15 focus:outline-none focus:border-sky-400">
+                    <option value="chirikov">Chirikov-Taylor (Islas KAM y Caos)</option>
+                    <option value="arnold">Gato de Arnold (Mezcla Hiperbólica)</option>
+                    <option value="henonArea">Hénon Conservativo (Rotación Elíptica)</option>
+                    <option value="gingerbread">Mapa de Gingerman (Polígonos Fractales)</option>
+                    <option value="ikeda">Atractor de Ikeda (Cavidad Óptica)</option>
+                </select>
+
+                <button id="playPauseBtn" class="pill-btn min-h-[42px] px-4 rounded-xl text-xs sm:text-sm font-medium bg-sky-500/25 hover:bg-sky-500/35 text-sky-100 border border-sky-400/40 flex items-center gap-1.5">
+                    <span id="playIcon">⏸</span>
+                    <span id="playLabel">Pausar</span>
+                </button>
+
+                <button id="stepBtn" class="pill-btn min-h-[42px] px-3.5 rounded-xl text-xs font-medium bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10">
+                    +1 Paso
+                </button>
+
+                <button id="clearBtn" class="pill-btn min-h-[42px] px-3.5 rounded-xl text-xs font-medium bg-white/5 hover:bg-white/10 text-amber-200 border border-white/10">
+                    Retícula
+                </button>
+            </div>
+
+            <!-- Fila 2: Parámetro de Bifurcación K / α y Persistencia de Retrato de Fase -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-white/10 text-[11px]">
+                <div class="flex items-center justify-between gap-2 bg-black/40 px-3 py-1.5 rounded-xl border border-white/5">
+                    <span id="paramName" class="text-slate-300 font-medium whitespace-nowrap">Perturbación K:</span>
+                    <input id="paramSlider" type="range" min="0" max="2.5" step="0.01" value="0.97" class="w-full max-w-[170px]" />
+                    <strong id="paramVal" class="font-mono-num text-amber-300 w-11 text-right">0.97</strong>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 bg-black/40 px-3 py-1.5 rounded-xl border border-white/5">
+                    <span class="text-slate-300 font-medium whitespace-nowrap">Estela de fase:</span>
+                    <input id="fadeSlider" type="range" min="0.01" max="0.25" step="0.01" value="0.04" class="w-full max-w-[140px]" />
+                    <button id="wipeBtn" class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-slate-200 text-[10px] font-medium">
+                        Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        /**
+         * RETRATOS DE FASE EN EL TORO [0, 1]²
+         * Simulación de difeomorfismos que conservan el área (sistemas hamiltonianos)
+         * y atractores no lineales. N constante de condiciones iniciales trazando
+         * variedades invariantes, resonancias de Poincaré-Birkhoff y mares estocásticos.
+         */
+        (function () {
+            const canvas = document.getElementById('phaseCanvas');
+            const ctx = canvas.getContext('2d');
+
+            const mapSelect = document.getElementById('mapSelect');
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            const playIcon = document.getElementById('playIcon');
+            const playLabel = document.getElementById('playLabel');
+            const stepBtn = document.getElementById('stepBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const wipeBtn = document.getElementById('wipeBtn');
+            const paramSlider = document.getElementById('paramSlider');
+            const paramName = document.getElementById('paramName');
+            const paramVal = document.getElementById('paramVal');
+            const fadeSlider = document.getElementById('fadeSlider');
+            const mapTitle = document.getElementById('mapTitle');
+            const mapFormula = document.getElementById('mapFormula');
+            const iterDisplay = document.getElementById('iterDisplay');
+            const orbDisplay = document.getElementById('orbDisplay');
+            const statusDot = document.getElementById('statusDot');
+
+            const TWO_PI = Math.PI * 2;
+
+            const MAPS = {
+                chirikov: {
+                    title: 'Mapa Estándar de Chirikov',
+                    formula: "p' = p + (K/2π)·sin(2πx) ,  x' = x + p'  (mod 1)",
+                    paramLabel: 'Perturbación K:',
+                    min: 0.0,
+                    max: 2.5,
+                    step: 0.01,
+                    defaultVal: 0.97, // Cerca del umbral crítico K_c ≈ 0.971635 (ruptura del último toro áureo)
+                    mode: 'torus',
+                    stepFn(x, y, K) {
+                        const ny = (y + (K / TWO_PI) * Math.sin(TWO_PI * x)) % 1;
+                        const py = ny < 0 ? ny + 1 : ny;
+                        const nx = (x + py) % 1;
+                        const px = nx < 0 ? nx + 1 : nx;
+                        return [px, py];
+                    }
+                },
+                arnold: {
+                    title: 'Gato de Arnold Perturbado',
+                    formula: "x' = 2x + y + ε·sin(2πy) ,  y' = x + y  (mod 1)",
+                    paramLabel: 'No linealidad ε:',
+                    min: 0.0,
+                    max: 0.45,
+                    step: 0.005,
+                    defaultVal: 0.08,
+                    mode: 'torus',
+                    stepFn(x, y, eps) {
+                        const nx = (2 * x + y + eps * Math.sin(TWO_PI * y)) % 1;
+                        const ny = (x + y + eps * Math.cos(TWO_PI * x)) % 1;
+                        return [nx < 0 ? nx + 1 : nx, ny < 0 ? ny + 1 : ny];
+                    }
+                },
+                henonArea: {
+                    title: 'Mapa de Hénon Conservativo',
+                    formula: "x' = x·cos α − (y − x²)·sin α ,  y' = x·sin α + (y − x²)·cos α",
+                    paramLabel: 'Ángulo α (rad):',
+                    min: 0.2,
+                    max: 2.9,
+                    step: 0.01,
+                    defaultVal: 1.32,
+                    mode: 'plane',
+                    stepFn(x, y, alpha) {
+                        // Mapeo de [0,1]² a [-1.1, 1.1]²
+                        const u = (x - 0.5) * 2.2;
+                        const v = (y - 0.5) * 2.2;
+                        const c = Math.cos(alpha);
+                        const s = Math.sin(alpha);
+                        const t = v - u * u;
+                        const nu = u * c - t * s;
+                        const nv = u * s + t * c;
+                        if (Math.hypot(nu, nv) > 4.5) {
+                            // Reinyectar suavemente cerca del centro elíptico si escapa al infinito
+                            return [0.5 + (Math.random() - 0.5) * 0.35, 0.5 + (Math.random() - 0.5) * 0.35];
+                        }
+                        return [nu / 2.2 + 0.5, nv / 2.2 + 0.5];
+                    }
+                },
+                gingerbread: {
+                    title: 'Mapa de Gingerman (PWLD)',
+                    formula: "x' = 1 − y + |x| ,  y' = x   (regiones hexagonales)",
+                    paramLabel: 'Escala de vista:',
+                    min: 4,
+                    max: 16,
+                    step: 0.5,
+                    defaultVal: 9.5,
+                    mode: 'plane',
+                    stepFn(x, y, scale) {
+                        const u = (x - 0.45) * scale;
+                        const v = (y - 0.45) * scale;
+                        const nu = 1 - v + Math.abs(u);
+                        const nv = u;
+                        return [nu / scale + 0.45, nv / scale + 0.45];
+                    }
+                },
+                ikeda: {
+                    title: 'Atractor Óptico de Ikeda',
+                    formula: "z' = 1 + u·z·exp(i·(0.4 − 6/(1+|z|²)))",
+                    paramLabel: 'Disipación u:',
+                    min: 0.55,
+                    max: 0.96,
+                    step: 0.005,
+                    defaultVal: 0.91,
+                    mode: 'plane',
+                    stepFn(x, y, u) {
+                        const zx = (x - 0.55) * 3.8;
+                        const zy = (y - 0.5) * 3.8;
+                        const t = 0.4 - 6.0 / (1.0 + zx * zx + zy * zy);
+                        const ct = Math.cos(t);
+                        const st = Math.sin(t);
+                        const nzx = 1.0 + u * (zx * ct - zy * st);
+                        const nzy = u * (zx * st + zy * ct);
+                        return [nzx / 3.8 + 0.55, nzy / 3.8 + 0.5];
+                    }
+                }
+            };
+
+            const state = {
+                mapKey: 'chirikov',
+                param: 0.97,
+                fadeAlpha: 0.04,
+                isPlaying: true,
+                iteration: 0,
+                particles: [], // { x, y, hue, sat, light }
+                box: { x: 0, y: 0, size: 300 },
+                isDragging: false
+            };
+
+            function computeLayout() {
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                const topPad = 76;
+                const botPad = 148;
+                const size = Math.max(200, Math.min(w - 24, h - topPad - botPad, 720));
+                state.box = {
+                    x: (w - size) * 0.5,
+                    y: topPad + (h - topPad - botPad - size) * 0.5,
+                    size
+                };
+            }
+
+            function wipeCanvas() {
+                ctx.fillStyle = '#04050a';
+                ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+            }
+
+            function resize() {
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                canvas.width = window.innerWidth * dpr;
+                canvas.height = window.innerHeight * dpr;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                computeLayout();
+                wipeCanvas();
+            }
+
+            /**
+             * Genera una retícula estructurada de condiciones iniciales en [0, 1]²
+             * Coloreadas según su posición inicial para visualizar mezcla, cizalla e islas KAM.
+             */
+            function seedGrid(countPerSide = 28) {
+                state.iteration = 0;
+                state.particles = [];
+                for (let i = 0; i < countPerSide; i++) {
+                    for (let j = 0; j < countPerSide; j++) {
+                        const x = (i + 0.5) / countPerSide;
+                        const y = (j + 0.5) / countPerSide;
+                        const hue = (y * 260 + x * 60 + 185) % 360;
+                        state.particles.push({
+                            x,
+                            y,
+                            hue,
+                            sat: 85,
+                            light: 64
+                        });
+                    }
+                }
+                orbDisplay.textContent = state.particles.length;
+                iterDisplay.textContent = '0';
+                wipeCanvas();
+            }
+
+            /**
+             * Inyecta un pequeño paquete circular de condiciones iniciales alrededor de (cx, cy)
+             * Ideal para explorar cómo se estira o queda atrapado un conjunto local en una isla.
+             */
+            function injectWavePacket(cx, cy, count = 48) {
+                const baseHue = (cx * 180 + cy * 180 + 30) % 360;
+                for (let k = 0; k < count; k++) {
+                    const r = 0.018 * Math.sqrt(Math.random());
+                    const theta = Math.random() * TWO_PI;
+                    const x = (((cx + r * Math.cos(theta)) % 1) + 1) % 1;
+                    const y = (((cy + r * Math.sin(theta)) % 1) + 1) % 1;
+                    state.particles.push({
+                        x,
+                        y,
+                        hue: (baseHue + r * 900) % 360,
+                        sat: 92,
+                        light: 68
+                    });
+                }
+                // Mantener población total acotada sin destruir estructuras activas
+                if (state.particles.length > 2600) {
+                    state.particles.splice(0, state.particles.length - 2600);
+                }
+                orbDisplay.textContent = state.particles.length;
+            }
+
+            function selectMap(key) {
+                const cfg = MAPS[key];
+                state.mapKey = key;
+                state.param = cfg.defaultVal;
+                mapTitle.textContent = cfg.title;
+                mapFormula.textContent = cfg.formula;
+                paramName.textContent = cfg.paramLabel;
+                paramSlider.min = cfg.min;
+                paramSlider.max = cfg.max;
+                paramSlider.step = cfg.step;
+                paramSlider.value = cfg.defaultVal;
+                paramVal.textContent = Number(cfg.defaultVal).toFixed(2);
+                seedGrid(28);
+            }
+
+            function stepIteration(subSteps = 1) {
+                const cfg = MAPS[state.mapKey];
+                const { x: bx, y: by, size } = state.box;
+
+                // Desvanecimiento sutil solo en el área del retrato para acumular la estructura
+                ctx.fillStyle = `rgba(4, 5, 10, ${state.fadeAlpha})`;
+                ctx.fillRect(bx, by, size, size);
+
+                // Limpiar exterior del cuadrado para mantener bordes nítidos
+                ctx.fillStyle = '#04050a';
+                ctx.fillRect(0, 0, window.innerWidth, by);
+                ctx.fillRect(0, by + size, window.innerWidth, window.innerHeight - (by + size));
+                ctx.fillRect(0, by, bx, size);
+                ctx.fillRect(bx + size, by, window.innerWidth - (bx + size), size);
+
+                ctx.globalCompositeOperation = 'lighter';
+
+                for (let s = 0; s < subSteps; s++) {
+                    state.iteration += 1;
+                    for (let i = 0; i < state.particles.length; i++) {
+                        const p = state.particles[i];
+                        const [nx, ny] = cfg.stepFn(p.x, p.y, state.param);
+                        p.x = nx;
+                        p.y = ny;
+
+                        if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) {
+                            const sx = bx + nx * size;
+                            const sy = by + (1 - ny) * size;
+                            ctx.fillStyle = `hsla(${p.hue}, ${p.sat}%, ${p.light}%, 0.42)`;
+                            ctx.fillRect(sx, sy, 1.65, 1.65);
+                        }
+                    }
+                }
+
+                ctx.globalCompositeOperation = 'source-over';
+
+                // Marco y ejes del dominio [0, 1]²
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(bx, by, size, size);
+
+                // Marcas centrales sutiles
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                ctx.beginPath();
+                ctx.moveTo(bx + size * 0.5, by);
+                ctx.lineTo(bx + size * 0.5, by + size);
+                ctx.moveTo(bx, by + size * 0.5);
+                ctx.lineTo(bx + size, by + size * 0.5);
+                ctx.stroke();
+
+                iterDisplay.textContent = state.iteration;
+            }
+
+            function loop() {
+                if (state.isPlaying) {
+                    stepIteration(2);
+                }
+                requestAnimationFrame(loop);
+            }
+
+            // --- INTERACCIÓN TÁCTIL Y RATÓN ---
+
+            function handlePointerInject(e) {
+                const { x: bx, y: by, size } = state.box;
+                const nx = (e.clientX - bx) / size;
+                const ny = 1 - (e.clientY - by) / size;
+                if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) {
+                    injectWavePacket(nx, ny, 36);
+                    if (!state.isPlaying) {
+                        stepIteration(1);
+                    }
+                }
+            }
+
+            canvas.addEventListener('pointerdown', (e) => {
+                state.isDragging = true;
+                handlePointerInject(e);
+            });
+
+            canvas.addEventListener('pointermove', (e) => {
+                if (!state.isDragging) return;
+                handlePointerInject(e);
+            });
+
+            window.addEventListener('pointerup', () => {
+                state.isDragging = false;
+            });
+
+            // --- CONTROLES ---
+
+            mapSelect.addEventListener('change', (e) => selectMap(e.target.value));
+
+            playPauseBtn.addEventListener('click', () => {
+                state.isPlaying = !state.isPlaying;
+                playIcon.textContent = state.isPlaying ? '⏸' : '▶';
+                playLabel.textContent = state.isPlaying ? 'Pausar' : 'Fluir';
+                statusDot.classList.toggle('bg-amber-400', state.isPlaying);
+                statusDot.classList.toggle('bg-slate-500', !state.isPlaying);
+            });
+
+            stepBtn.addEventListener('click', () => {
+                if (state.isPlaying) {
+                    state.isPlaying = false;
+                    playIcon.textContent = '▶';
+                    playLabel.textContent = 'Fluir';
+                }
+                stepIteration(1);
+            });
+
+            clearBtn.addEventListener('click', () => seedGrid(28));
+            wipeBtn.addEventListener('click', wipeCanvas);
+
+            paramSlider.addEventListener('input', (e) => {
+                state.param = Number(e.target.value);
+                paramVal.textContent = state.param.toFixed(2);
+                if (!state.isPlaying) {
+                    wipeCanvas();
+                    stepIteration(1);
+                }
+            });
+
+            fadeSlider.addEventListener('input', (e) => {
+                state.fadeAlpha = Number(e.target.value);
+            });
+
+            window.addEventListener('resize', () => {
+                resize();
+                stepIteration(1);
+            });
+
+            // Inicialización
+            resize();
+            selectMap('chirikov');
+            requestAnimationFrame(loop);
+        })();
+    </script>
+</body>
+</html>
